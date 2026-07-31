@@ -3,7 +3,8 @@ Hướng: [x] A — VLearn  [ ] B — Trợ lý Học viên  [ ] C — Làn mở
 Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
 
 > Trạng thái: §1, §2, §4, §5, §7, §8 (thiếu willing users), §9 đã điền. §3, §6 và phần dữ liệu thật của `validation/`
-> còn TODO — xem cuối file. **Ưu tiên cao nhất: chưa có golden set nào chạy thật trên backend, xem §7.**
+> còn TODO — xem cuối file. Golden set v2 đã có 59 case và runner cho FastAPI hiện tại; lượt chạy live còn phụ thuộc
+> `ANTHROPIC_API_KEY`, xem §7.
 > Prototype = duy nhất `codebase/prototype/backend/` (FastAPI + Claude) + `codebase/prototype/frontend/` (React) —
 > bản mock cũ (`index.html` + `codebase/server/`) đã bị xoá khỏi repo sau khi hoàn thành vai trò của nó (chứng minh
 > lát cắt bấm được ở CP2/CP3); lịch sử vẫn xem lại được qua `git log`.
@@ -117,30 +118,45 @@ Prototype: `codebase/prototype/backend/` (FastAPI + Claude) + `codebase/prototyp
 
 ## §7. Kiểm thử
 
-> ⚠️ **Chưa có golden set nào chạy được thật trên `codebase/prototype/backend/`.** Bản golden set trước đó
-> (`eval/golden-set.js`, đã xoá cùng đợt dọn code — xem §9 Changelog) test một backend khác đã không còn tồn tại.
-> `eval/golden-set-v2.js` (60 case, Phạm Tiến Đại/Nguyễn Ngọc Đạt) hiện có trong repo nhưng viết cho payload/tên file
-> khác với `main.py` thật (xem TODO) — **cần sửa xong rồi chạy trước khi §7 này có số liệu thật.** Đây là việc ưu
-> tiên cao nhất còn lại cho R4 (15đ) + R5 (8đ).
-
-- **Golden set dự kiến:** `eval/golden-set-v2.js`, 60 case theo đúng 4 lớp chỗ khó, nhắm 4 endpoint thật
-  (`/session /explain /summary/:id /exercise`) — cần sửa payload cho khớp `main.py` (§4 non-goal, TODO) trước khi
-  chạy được.
-- **4 chiều chất lượng dự kiến áp dụng** (giữ nguyên định nghĩa đã kiểm chứng độ rõ từ bản trước, chỉ đổi đối tượng
-  test):
-  1. **D1 — Có căn cứ**: mọi `[Page X]` trích trong `/explain`, `/summary` phải nằm trong tập trang đã ingest — chấm
-     tự động được (so `related_pages`/`page_refs` với `db.get_pages()`).
+- **Checkpoint v1 (legacy):** 21 case trong `eval/golden-set.js` (xem `eval/golden-set.md`) kiểm thử Express
+  `POST /api/summarize`: ≥2 case/lớp cho đủ 4 lớp chỗ khó + 8 case thường + 3 case hiếm; **11/21 case**
+  bám chatlog thật. Đây là bằng chứng lịch sử, không được trình bày như kết quả của FastAPI hiện tại.
+- **Golden set v2 (FastAPI hiện tại):** 59 case trong `eval/golden-set-v2.js`, phủ `POST /session`,
+  `GET /summary/{document_id}`, `POST /explain` và `POST /exercise`; **12/59 case** bám chatlog thật.
+  `eval/run-golden-set-v2.js` kiểm schema offline bằng `--dry-run`, hoặc seed DB tạm qua `VLEARN_DB_PATH`,
+  khởi động backend cô lập và chạy đủ bộ khi có `ANTHROPIC_API_KEY`.
+- **6 chiều chất lượng v2, định nghĩa kiểm chứng được** (chi tiết trong `eval/review-v2-rubric.md`):
+  1. **D1 — Có căn cứ**: mọi citation, `page_refs` và `related_pages` phải thuộc fixture đã seed — chấm **tự động**
+     (`eval/run-golden-set-v2.js`), số liệu vẫn được reviewer đối chiếu.
   2. **D2 — Không bịa nội dung ngoài slide** — chấm tay.
-  3. **D3 — An toàn/đúng phạm vi** — chấm tay.
+  3. **D3 — An toàn/đúng phạm vi** (case lớp③ + troll) — chấm tay.
   4. **D4 — Đúng tầm persona** (so sánh cặp cùng nội dung khác `background`) — chấm tay.
+  5. **D5 — Liên kết chéo có căn cứ** — chấm tay.
+  6. **D6 — Bài tập bám trang, đúng format và tự kiểm được** — chấm tay.
 - **Quality bar** (chốt tại thời điểm commit spec.md, giữ nguyên sau đó):
 
-  > Đạt khi: **≥90% case pass D1 VÀ 100% case pass D3 VÀ ≥80% case pass D2 VÀ ≥50% cặp persona (D4) có khác biệt rõ rệt.**
+  > Đạt khi: **≥90% case pass D1 VÀ 100% case lớp③ pass D3 VÀ ≥80% case pass D2 VÀ ≥50% cặp persona (D4) có khác biệt rõ rệt.**
 
-- **Kết quả các lượt chạy:** chưa có — sẽ cập nhật ngay khi golden-set-v2 chạy được trên backend thật (xem TODO).
-  *(Bản trước đã từng đo được thật trên backend cũ: lượt 1 phát hiện AI bịa nội dung khi thiếu input + persona không
-  đổi được cách giải thích, lượt 2 sau khi sửa đạt cả 4 tiêu chí — quy trình `chạy → sửa → chạy lại` này áp dụng y hệt
-  cho backend hiện tại, xem lịch sử git nếu cần tham khảo cách làm.)*
+- **Kết quả checkpoint v1:**
+  - **Lượt #1** (`eval/results-run-1.md`): phát hiện model bịa khi thiếu input và persona chưa đổi cách giải thích;
+    nhóm sửa validation đầu vào và chuyển persona từ tag chung sang chỉ thị điều kiện cụ thể.
+  - **Lượt #2** (`eval/results-run-2.md`): D1 100% · D2 100% · D3 100% · D4 **100%** → **Đạt quality bar**, sau đúng
+    1 vòng lặp chạy → chọn failure đau nhất → sửa → chạy lại trọn bộ.
+  - Hai lượt trên chỉ thuộc v1. **V2 chưa có kết quả live được commit** vì môi trường kiểm thử chưa có
+    `ANTHROPIC_API_KEY`; không dùng mock để thay thế bằng chứng chất lượng.
+- **Kết quả xác minh v2 ngày 31/07/2026:**
+  - `node eval/run-golden-set-v2.js --dry-run`: **PASS 59/59 case về cấu trúc**; đúng **12 case chatlog**,
+    phân bố endpoint gồm 33 explain · 7 summary · 12 exercise · 7 onboarding; không gọi model và không ghi result giả.
+  - `python -m pytest -q` tại backend: **PASS 20/20 unit/regression test** trong 3,21 giây; còn 1 warning deprecation
+    từ `fastapi.testclient`/Starlette, không làm test fail.
+  - Smoke test `eval/seed-golden-v2.py`: **PASS**, tạo DB tạm, seed và đọc lại document thành công; không chạm
+    `codebase/prototype/backend/data/store.db`.
+  - `node --check` cho golden set và hai runner, `python -m compileall` cho backend, cùng `git diff --check`:
+    **PASS**, không có lỗi syntax/compile/whitespace.
+  - **Chưa chấm quality bar v2:** chưa chạy 59 case với model thật, nên chưa có điểm D1-D6 và chưa được kết luận
+    đạt/chưa đạt chất lượng AI.
+- **Giới hạn hiện tại:** v1 mới do 1 người chấm D2/D3/D4. V2 đã đủ 59 case nhưng còn phải chạy live và cần
+  người thứ 2 chấm D2-D6 độc lập theo `eval/review-v2-rubric.md` trước khi công bố đạt.
 
 ---
 
@@ -180,13 +196,8 @@ Prototype: `codebase/prototype/backend/` (FastAPI + Claude) + `codebase/prototyp
 - §5 *(đã viết lại theo backend thật — 5 kịch bản, xem trên)* — mở rộng lên ≥8, ≥2 case/lớp, trước CP4; ưu tiên vá
   gap error-handling đã phát hiện (`/explain` không có `catch` ở frontend, ingest không bắt lỗi LLM).
 - §6. Bốn đường đi trải nghiệm — chưa làm.
-- **§7 — golden set chưa khớp backend thật, đây là việc ưu tiên nhất cho R4+R5:**
-  - Cần adapter chuyển persona `{answers:{...}}` của `golden-set-v2.js` sang đúng 8 field `role/goal/level_*` mà
-    `POST /session` thật cần, và đổi tên file PDF test cho khớp `backend/data/raw_pdfs/` thật (hoặc thay bằng slide
-    VLearn thật — xem non-goal #1 ở §4).
-  - Sau khi adapter xong: viết `eval/run-golden-set-v2.js` (theo mẫu `eval/run-golden-set.js`), chạy thật, ghi
-    `eval/results-v2-run-1.md`.
-  - Vẫn cần người thứ 2 chấm độc lập D2/D3/D4 cho cả 2 bộ.
+- **§7** *(đã có 59 case + runner + rubric — xem trên)* — còn thiếu: chạy live đủ 59 case v2 với model thật và
+  người thứ 2 chấm độc lập D2-D6.
 - §8 *(đã điền tên + phân công lại theo lát cắt mới — xem trên)* — còn thiếu: **willing users (≥3 tên người ngoài
   team)** — cần trước khi chạy `validation/`.
 - **`validation/`** — đã tạo scaffold (`validation/README.md`, `validation/feedback-log.md`) nhưng **chưa có dữ liệu

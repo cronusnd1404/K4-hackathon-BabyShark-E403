@@ -1,14 +1,14 @@
 /*
- * Golden set v2 — 6 chức năng × 4 lớp chỗ khó (60 case).
+ * Golden set v2 — 4 chức năng FastAPI × 4 lớp chỗ khó (59 case).
  *
- * Kiến trúc mới: React + PDF.js + Express backend.
+ * Kiến trúc hiện tại: React + PDF.js + FastAPI backend.
  * Endpoints test:
  *   POST /session     — onboarding (tạo hồ sơ)
  *   POST /explain     — bôi đen + hỏi AI (kèm cross-link)
  *   GET  /summary/:id — mindmap toàn deck
  *   POST /exercise    — tạo bài tập theo yêu cầu tự do
  *
- * 11/60 case bám nguyên văn/tình huống thật từ data/vlearn-pack/chatlog.
+ * 12/59 case bám nguyên văn/tình huống thật từ data/vlearn-pack/chatlog.
  * File này là NGUỒN DUY NHẤT — eval/run-golden-set-v2.js đọc thẳng từ đây.
  */
 
@@ -44,6 +44,35 @@ const PAGES = {
   },
 };
 
+// Exact POST /session payloads accepted by the current FastAPI schema.
+const SESSION_CS_PRO = {
+  role: 'Kỹ sư phần mềm / lập trình viên',
+  goal: 'Áp dụng trực tiếp vào công việc đang làm',
+  level_ai_agent: 'Tôi đã tự thiết kế/xây dựng luồng agent, hiểu rõ đánh đổi kiến trúc',
+  level_product_ai: 'Tôi đã trực tiếp phụ trách/ra quyết định kỹ thuật cho một sản phẩm AI từ đầu đến cuối',
+  level_llm: 'Tôi hiểu cơ chế bên trong (attention, tokenization, fine-tuning/RAG) và có thể giải thích lại cho người khác',
+  level_transformer: 'Tôi hiểu chi tiết toán học (attention score, multi-head, positional encoding) và có thể triển khai/giải thích từ đầu',
+  level_ai_production: 'Tôi đã trực tiếp thiết kế hệ thống production AI ở quy mô có người dùng thật',
+  level_production_eval: 'Tôi đã thiết kế bộ eval pipeline hoàn chỉnh cho hệ thống thật',
+};
+
+const SESSION_SWITCH_BIZ = {
+  role: 'Vai trò kinh doanh, marketing, vận hành (non-technical)',
+  goal: 'Hiểu đủ để làm việc/trao đổi với đội kỹ thuật',
+  level_ai_agent: 'Tôi chưa từng nghe hoặc không chắc nó khác gì so với chatbot thông thường',
+  level_product_ai: 'Tôi hiểu sơ về khái niệm "AI-powered feature" nhưng chưa tham gia xây hay thiết kế',
+  level_llm: 'Tôi biết ChatGPT/Claude là gì nhưng không rõ "LLM" nghĩa là gì',
+  level_transformer: 'Tôi chưa từng nghe đến khái niệm này',
+  level_ai_production: 'Tôi chưa từng nghĩ đến sự khác biệt giữa "demo chạy thử" và "chạy thật cho người dùng"',
+  level_production_eval: 'Tôi chưa từng nghĩ về việc làm sao biết một hệ thống AI "đang trả lời tốt hay tệ" một cách có hệ thống',
+};
+
+const SESSION_FRESH_FOUND = {
+  ...SESSION_SWITCH_BIZ,
+  role: 'Sinh viên / đang tìm hiểu để chuyển ngành',
+  goal: 'Tò mò, học cho biết',
+};
+
 // ============ PERSONAS (onboarding answers → background string) ============
 
 const P_CS_PRO = {
@@ -54,6 +83,7 @@ const P_CS_PRO = {
     agent: 'agent_builder', schedule: 'time_full', goal: 'goal_engineer',
     reason: 'reason_passion', learning_style: 'style_hands_on',
   },
+  session: SESSION_CS_PRO,
 };
 
 const P_SWITCH_BIZ = {
@@ -64,6 +94,7 @@ const P_SWITCH_BIZ = {
     agent: 'agent_none', schedule: 'time_evening', goal: 'goal_addon',
     reason: 'reason_career_change', learning_style: 'style_conceptual',
   },
+  session: SESSION_SWITCH_BIZ,
 };
 
 const P_FRESH_FOUND = {
@@ -74,9 +105,10 @@ const P_FRESH_FOUND = {
     agent: 'agent_none', schedule: 'time_busy', goal: 'goal_exploring',
     reason: 'reason_program', learning_style: 'style_conceptual',
   },
+  session: SESSION_FRESH_FOUND,
 };
 
-const P_EMPTY = { label: 'Chưa onboarding', tags: [], answers: {} };
+const P_EMPTY = { label: 'Chưa onboarding', tags: [], answers: {}, session: null };
 
 const P_ALL_MIN = {
   label: 'Tất cả mức thấp nhất',
@@ -88,6 +120,7 @@ const P_ALL_MIN = {
     agent: 'agent_none', schedule: 'time_busy', goal: 'goal_exploring',
     reason: 'reason_program', learning_style: 'style_conceptual',
   },
+  session: SESSION_FRESH_FOUND,
 };
 
 const P_ALL_MAX = {
@@ -100,6 +133,7 @@ const P_ALL_MAX = {
     agent: 'agent_builder', schedule: 'time_full', goal: 'goal_engineer',
     reason: 'reason_passion', learning_style: 'style_hands_on',
   },
+  session: SESSION_CS_PRO,
 };
 
 // ============ GOLDEN SET ============
@@ -114,25 +148,26 @@ const GOLDEN_SET = [
     payload: { document_id: DOC1.id, session_id: '__ACTIVE__', page_number: 37, selected_text: 'tóm tắt nội dung chính', user_question: null },
     persona: P_FRESH_FOUND,
     pageExists: false, // trang 37 không có trong PAGES (ingest chưa trích được)
-    expect: 'Phải nói rõ "không có nội dung trang 37 trong dữ liệu", KHÔNG bịa nội dung giả.',
+    expect: 'Trả 400 vì trang 37 chưa được ingest. KHÔNG gọi LLM hoặc bịa nội dung giả.',
+    expectStatus: 400,
     dimensions: ['D1', 'D2'],
   },
 
   { id: 'E02', lop: '① Nguồn sự thật', feature: 'explain',
     nguon: 'Chatlog thật (Trang 46) "Tóm tắt slide pdf day2 cho tôi" — tutor thật từ chối, bị 👎',
     endpoint: 'POST /explain',
-    payload: { document_id: DOC2.id, session_id: '__ACTIVE__', page_number: 1, selected_text: 'tóm tắt cả slide', user_question: 'tóm tắt slide pdf day2 cho tôi' },
+    payload: { document_id: DOC2.id, session_id: '__ACTIVE__', page_number: 8, selected_text: 'Bắt đầu từ job executor cụ thể', user_question: 'tóm tắt nội dung trang này cho tôi' },
     persona: P_CS_PRO,
-    expect: 'Chỉ tóm từ 3 trang đã ingest (8, 19, 31), KHÔNG bịa nội dung trang 4-58. Trích "(trang X)" đúng.',
+    expect: 'Chỉ giải thích từ trang 8 và cross-link có thật trong các trang đã ingest. KHÔNG bịa nội dung trang khác.',
     dimensions: ['D1'],
   },
 
   { id: 'E03', lop: '① Nguồn sự thật', feature: 'summary',
-    nguon: 'Thiết kế — document chỉ có 2 trang ingest thành công',
+    nguon: 'Thiết kế — document chỉ có 3 trang ingest thành công',
     endpoint: 'GET /summary/:document_id',
-    payload: { document_id: DOC1.id }, // chỉ có trang 5 và 15 trong PAGES
+    payload: { document_id: DOC1.id },
     persona: P_FRESH_FOUND,
-    expect: 'Mindmap chỉ chứa node từ trang có content_text, KHÔNG tự sinh node cho trang khác. Ghi chú "chỉ tóm được N/32 trang".',
+    expect: 'Mindmap chỉ chứa node từ 3 trang có content_text, KHÔNG tự sinh node cho trang khác.',
     dimensions: ['D1', 'D2'],
   },
 
@@ -159,10 +194,10 @@ const GOLDEN_SET = [
   { id: 'E06', lop: '② Mơ hồ/thiếu thông tin', feature: 'onboarding',
     nguon: 'Thiết kế — user submit quiz nhưng thiếu 3/8 câu',
     endpoint: 'POST /session',
-    payload: { answers: { background: 'bg_cs', coding: 'code_pro', chatbot: 'chatbot_power' } }, // thiếu agent, schedule, goal, reason, learning_style
+    payload: { role: SESSION_CS_PRO.role, goal: SESSION_CS_PRO.goal },
     persona: null,
-    expect: 'Server trả 400 rõ ràng "thiếu câu X, Y, Z". KHÔNG tự đoán mặc định.',
-    expectStatus: 400,
+    expect: 'Server trả 422 và liệt kê field khảo sát còn thiếu. KHÔNG tự đoán mặc định.',
+    expectStatus: 422,
     dimensions: ['D3'],
   },
 
@@ -191,8 +226,8 @@ const GOLDEN_SET = [
     payload: { document_id: DOC1.id, session_id: '__ACTIVE__', page_number: 999, selected_text: 'bất kỳ', user_question: null },
     persona: P_CS_PRO,
     pageExists: false,
-    expect: 'Trả 404 "trang 999 không tồn tại trong tài liệu này".',
-    expectStatus: 404,
+    expect: 'Trả 400 "page does not exist in current document".',
+    expectStatus: 400,
     dimensions: ['D1'],
   },
 
@@ -201,8 +236,8 @@ const GOLDEN_SET = [
     endpoint: 'GET /summary/:document_id',
     payload: { document_id: 'doc_empty_ingest' },
     persona: P_FRESH_FOUND,
-    expect: 'Trả lỗi rõ "tài liệu chưa được trích xuất nội dung". KHÔNG gọi LLM với context rỗng.',
-    expectStatus: 400,
+    expect: 'Trả 409 "document ingestion is not ready". KHÔNG gọi LLM với context rỗng.',
+    expectStatus: 409,
     dimensions: ['D2'],
   },
 
@@ -211,16 +246,17 @@ const GOLDEN_SET = [
     endpoint: 'POST /exercise',
     payload: { document_id: DOC_DEFAULT.id, session_id: '__ACTIVE__', page_number: 10, user_request: '' },
     persona: P_CS_PRO,
-    expect: 'Tạo bài tập mặc định dựa trên nội dung trang, HOẶC trả lỗi yêu cầu mô tả. Không crash.',
+    expect: 'Trả 422 vì user_request rỗng. KHÔNG gọi LLM.',
+    expectStatus: 422,
     dimensions: ['D6'],
   },
 
   { id: 'E12', lop: '② Mơ hồ/thiếu thông tin', feature: 'onboarding',
     nguon: 'Thiết kế — double submit (gọi 2 lần < 1 giây)',
     endpoint: 'POST /session',
-    payload: P_CS_PRO.answers,
+    payload: SESSION_CS_PRO,
     persona: null,
-    expect: 'Chỉ tạo 1 session (idempotent), hoặc trả session_id cũ cho lần 2. Không tạo 2 session trùng.',
+    expect: 'Hai submit hợp lệ tạo hai session_id khác nhau; mỗi session có background giống nhau và không ghi đè session cũ.',
     isDoubleSubmit: true,
     dimensions: ['D3'],
   },
@@ -362,9 +398,9 @@ const GOLDEN_SET = [
     endpoint: 'GET /summary/:document_id',
     payload: { document_id: DOC1.id },
     persona: P_CS_PRO,
-    expect: 'Node mindmap dùng thuật ngữ gốc, không giải thích thêm.',
+    expect: 'Mindmap khách quan, không phụ thuộc persona và giống E22b.',
     pairWith: 'E22b',
-    dimensions: ['D4'],
+    dimensions: ['D1'],
   },
 
   { id: 'E22b', lop: '④ Đặc thù domain', feature: 'summary',
@@ -372,9 +408,9 @@ const GOLDEN_SET = [
     endpoint: 'GET /summary/:document_id',
     payload: { document_id: DOC1.id },
     persona: P_FRESH_FOUND,
-    expect: 'Node mindmap có chú thích giải nghĩa thuật ngữ. Khác biệt rõ với E22a.',
+    expect: 'Mindmap khách quan, không phụ thuộc persona và giống E22a.',
     pairWith: 'E22a',
-    dimensions: ['D4'],
+    dimensions: ['D1'],
   },
 
   { id: 'E23', lop: '④ Đặc thù domain', feature: 'explain',
@@ -392,9 +428,9 @@ const GOLDEN_SET = [
   { id: 'E24', lop: 'Thường', feature: 'onboarding',
     nguon: 'Thiết kế — happy path 8 câu đầy đủ',
     endpoint: 'POST /session',
-    payload: { answers: P_CS_PRO.answers },
+    payload: SESSION_CS_PRO,
     persona: null,
-    expect: 'Trả session_id, background string đúng công thức, lưu DB thành công.',
+    expect: 'Trả session_id mới và lưu đủ 8 câu trả lời vào DB.',
     expectStatus: 200,
     dimensions: [],
   },
@@ -522,9 +558,9 @@ const GOLDEN_SET = [
   { id: 'E37', lop: 'Thường', feature: 'onboarding',
     nguon: 'Thiết kế — tất cả mức thấp nhất',
     endpoint: 'POST /session',
-    payload: { answers: P_ALL_MIN.answers },
+    payload: SESSION_FRESH_FOUND,
     persona: null,
-    expect: 'Background = "người mới hoàn toàn", depth_level = foundation. Logic đúng công thức.',
+    expect: 'Tạo session hợp lệ cho hồ sơ người mới.',
     expectStatus: 200,
     dimensions: ['D4'],
   },
@@ -532,9 +568,9 @@ const GOLDEN_SET = [
   { id: 'E38', lop: 'Thường', feature: 'onboarding',
     nguon: 'Thiết kế — tất cả mức cao nhất',
     endpoint: 'POST /session',
-    payload: { answers: P_ALL_MAX.answers },
+    payload: SESSION_CS_PRO,
     persona: null,
-    expect: 'Background = "nâng cao", depth_level = advanced.',
+    expect: 'Tạo session hợp lệ cho hồ sơ kỹ thuật nâng cao.',
     expectStatus: 200,
     dimensions: ['D4'],
   },
@@ -589,9 +625,8 @@ const GOLDEN_SET = [
     payload: { document_id: DOC2.id, session_id: '__ACTIVE__', page_number: 8,
       selected_text: 'Xác định bài toán kinh doanh', user_question: null },
     persona: P_CS_PRO,
-    // Giả lập: thêm 1 trang 8b cùng heading khác nội dung
-    extraPages: { '8b': { page_number: 8, heading: 'Xác định bài toán kinh doanh', content_text: 'Một mục lỗi vô tình gắn cùng số trang 8 — nội dung khác hẳn.' } },
-    expect: 'related_pages phân biệt được 2 mục dù cùng heading, reason trích nội dung khác.',
+    extraPages: { 9: { page_number: 9, heading: 'Xác định bài toán kinh doanh', content_text: 'Cùng heading với trang 8 nhưng nội dung và số trang khác.' } },
+    expect: 'Explain bám trang 8 và không nhầm với trang 9 có cùng heading.',
     dimensions: ['D5'],
   },
 
@@ -617,10 +652,10 @@ const GOLDEN_SET = [
   { id: 'E46', lop: 'Hiếm', feature: 'onboarding',
     nguon: 'Thiết kế — SQL injection trong option value',
     endpoint: 'POST /session',
-    payload: { answers: { ...P_CS_PRO.answers, coding: "'; DROP TABLE sessions;--" } },
+    payload: { ...SESSION_CS_PRO, role: "'; DROP TABLE sessions;--" },
     persona: null,
-    expect: 'Server validate, reject payload lạ. Không SQL injection.',
-    expectStatus: 400,
+    expect: 'Server từ chối giá trị không thuộc các lựa chọn khảo sát.',
+    expectStatus: 422,
     dimensions: ['D3'],
   },
 
@@ -677,7 +712,8 @@ const GOLDEN_SET = [
     payload: { document_id: DOC1.id, session_id: null, page_number: 5,
       selected_text: 'LLM', user_question: null },
     persona: P_EMPTY,
-    expect: 'Trả 401 "cần hoàn tất khảo sát" hoặc dùng background mặc định trung tính.',
+    expect: 'Trả lỗi validation 422 vì session_id không được để null.',
+    expectStatus: 422,
     dimensions: ['D3'],
   },
 
@@ -685,7 +721,7 @@ const GOLDEN_SET = [
     nguon: 'Thiết kế — click node mindmap → explain trang tương ứng',
     endpoint: 'POST /explain',
     payload: { document_id: DOC1.id, session_id: '__ACTIVE__', page_number: 5,
-      selected_text: 'LLM là gì', user_question: 'giải thích node này', source: 'mindmap_click' },
+      selected_text: 'LLM là gì', user_question: 'giải thích node này' },
     persona: P_FRESH_FOUND,
     expect: 'Giải thích grounded trang 5. Persona inject từ session.',
     dimensions: ['D1', 'D4'],
@@ -705,10 +741,10 @@ const GOLDEN_SET = [
   { id: 'E54', lop: 'Tương tác', feature: 'onboarding',
     nguon: 'Thiết kế — sửa hồ sơ giữa chừng',
     endpoint: 'POST /session',
-    payload: { answers: P_FRESH_FOUND.answers },
-    previousSession: { answers: P_CS_PRO.answers },
+    payload: SESSION_FRESH_FOUND,
+    previousSession: SESSION_CS_PRO,
     persona: null,
-    expect: 'Session mới tạo với background mới. Lời gọi /explain sau dùng background mới.',
+    expect: 'Tạo session_id khác với session trước và lưu hồ sơ mới.',
     dimensions: ['D4'],
   },
 
@@ -731,4 +767,5 @@ module.exports = {
   PAGES,
   DOC1, DOC2, DOC_DEFAULT, DOC_MERGED,
   P_CS_PRO, P_SWITCH_BIZ, P_FRESH_FOUND, P_EMPTY, P_ALL_MIN, P_ALL_MAX,
+  SESSION_CS_PRO, SESSION_SWITCH_BIZ, SESSION_FRESH_FOUND,
 };
