@@ -159,7 +159,7 @@ Prototype: `codebase/prototype/backend/` (FastAPI + Claude) + `codebase/prototyp
 
 ## §8. Phân công & kế hoạch
 
-**Nhóm BabyShark · Zone 2:** Đỗ Quang Huy · Phạm Tiến Đại · Nguyễn Ngọc Đạt
+**Nhóm BabyShark · Zone 2:** Đỗ Quang Huy · Phạm Tiến Đại · Bùi Ngọc Đạt
 
 | Người | Phần phụ trách | Đã làm trong repo (để CP5 hỏi ngẫu nhiên vẫn trả lời được) |
 |---|---|---|
@@ -169,8 +169,8 @@ Prototype: `codebase/prototype/backend/` (FastAPI + Claude) + `codebase/prototyp
 
 *(Phân công này là đề xuất dựa theo phần việc đã có trong repo tính đến thời điểm này — 3 người có thể tự đổi lại cho khớp thế mạnh thật, miễn giữ nguyên tắc: ai cũng phải giải thích được phần có tên mình.)*
 
-- **Willing users dự kiến (≥3, ngoài 3 người trong team, chọn từ danh sách lớp Zone 2):** Trần Thế Ninh, Đào Việt Phong, Dương Quang Huy, Nguyễn Tiến Đạt. *(Mới là danh sách dự kiến — chưa xác nhận đồng ý; người phụ trách validation (Nguyễn Ngọc Đạt) cần liên hệ thật trước CP5 và log kết quả vào `validation/feedback-log.md`.)*
-- **Kế hoạch vòng validation CP5:** theo `validation/README.md` — phiên 10 phút/người, 3 câu hỏi chuẩn, log nguyên văn vào `validation/feedback-log.md`. Người phụ trách: Nguyễn Ngọc Đạt.
+- **Willing users dự kiến (≥3, ngoài 3 người trong team, chọn từ danh sách lớp Zone 2):** Trần Thế Ninh, Đào Việt Phong, Dương Quang Huy, Nguyễn Tiến Đạt. *(Mới là danh sách dự kiến — chưa xác nhận đồng ý; người phụ trách validation (Bùi Ngọc Đạt) cần liên hệ thật trước CP5 và log kết quả vào `validation/feedback-log.md`.)*
+- **Kế hoạch vòng validation CP5:** theo `validation/README.md` — phiên 10 phút/người, 3 câu hỏi chuẩn, log nguyên văn vào `validation/feedback-log.md`. Người phụ trách: Bùi Ngọc Đạt.
 - **Multi-prototype:** chưa làm (không bắt buộc — guide đánh dấu khuyến khích nếu kịp giữa CP2-CP3).
 
 ---
