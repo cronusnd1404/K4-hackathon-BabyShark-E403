@@ -15,10 +15,17 @@ def make_document_id(pdf_path):
 
 
 def ingest_document(pdf_path):
-    """Returns (document_id, validated). Skips re-ingesting if already cached."""
+    """Returns (document_id, validated). Skips re-ingesting if already cached.
+
+    Bug fix: `is_ingested()` alone isn't enough -- store.db can carry a cached row
+    from a different machine/checkout whose `source_pdf_path` no longer exists here
+    (this is exactly what happened with the committed store.db: it pointed at
+    Dai's local D:\\Project_Vin\\... path), so /pdf/{document_id} 404s even though
+    /ingest reports success. Re-ingest whenever the cached source path is missing.
+    """
     document_id = make_document_id(pdf_path)
 
-    if db.is_ingested(document_id):
+    if db.is_ingested(document_id) and os.path.exists(db.get_source_pdf_path(document_id) or ""):
         return document_id, True
 
     doc = fitz.open(pdf_path)

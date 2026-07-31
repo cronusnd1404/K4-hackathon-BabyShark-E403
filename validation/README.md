@@ -6,14 +6,16 @@
 
 ## Cần làm (theo `02-guide.md` §4.2 + rubric R6)
 
-- **≥3 người thật ngoài team đồng ý thử trước Demo** (tiêu chí nghiệm thu #5 trong `01-de-bai.md`) — ưu tiên
-  người đã khai là "willing user" ở Canvas CP1 (spec.md §8 — **hiện chưa điền tên**, cần làm trước).
+- **≥3 người thật ngoài team đồng ý thử trước Demo** (tiêu chí nghiệm thu #5 trong `01-de-bai.md`) — danh sách dự
+  kiến đã có ở `spec.md` §8, **cần liên hệ thật và xác nhận trước khi dùng**.
 - **≥5 mẩu feedback** có tên/vai + quote nguyên văn cho CP5 (rubric R6 — 8 điểm).
 - Cách nhanh nhất theo guide: đổi chéo với nhóm khác trong zone, hoặc thành viên zone khác — ai cũng là user thật của khoá.
 
 ## Cách chạy 1 phiên (10 phút/người, theo guide §4.2)
 
-1. **Chuẩn bị:** mở `codebase/server` (`npm start`), mở `http://localhost:3000` trên máy đưa cho người thử.
+1. **Chuẩn bị:** chạy `uvicorn main:app --port 8020` trong `codebase/prototype/backend/` (cần `.env` có
+   `ANTHROPIC_API_KEY` thật), và `npm run dev` trong `codebase/prototype/frontend/` — đưa `http://localhost:5173`
+   cho người thử.
 2. **Giao task thật:** "Hãy dùng cái này để tóm tắt lại 1 buổi học bạn từng bỏ lỡ hoặc thấy khó hiểu."
 3. **Im lặng quan sát** — không thuyết minh, không gợi ý. Ghi lại: họ bấm gì, kẹt ở đâu.
 4. **Hỏi đúng 3 câu sau khi họ dùng xong:**

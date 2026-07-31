@@ -11,9 +11,9 @@ Nhóm BabyShark · Zone 2 — hướng **A · VLearn** (tối ưu AI tutor hiệ
 
 | Thành viên | Phụ trách | Chi tiết |
 |---|---|---|
-| **Đỗ Quang Huy** | Spec + Evidence + Code | `spec.md` §1-§2, §4-§5; `codebase/prototype/`, `codebase/server/` |
-| **Phạm Tiến Đại** | Prompt engineering + Eval | Prompt trong `codebase/server/server.js`; `eval/` (golden set + các lượt chạy) |
-| **Nguyễn Ngọc Đạt** | Validation + Demo | `validation/` (vòng test người dùng thật); `demo-slides.pdf` |
+| **Đỗ Quang Huy** | Spec + Evidence | `spec.md` §1-§2, §4-§5 |
+| **Phạm Tiến Đại** | Prototype (backend + frontend) | `codebase/prototype/backend/` (FastAPI + Claude), `codebase/prototype/frontend/` (React) |
+| **Nguyễn Ngọc Đạt** | Eval + Validation + Demo | `eval/golden-set-v2.js`; `validation/` (vòng test người dùng thật); `demo-slides.pdf` |
 
 Chi tiết đầy đủ (kế hoạch, willing users): `spec.md` §8.
 

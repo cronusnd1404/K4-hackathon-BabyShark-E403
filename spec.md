@@ -2,8 +2,11 @@
 Hướng: [x] A — VLearn  [ ] B — Trợ lý Học viên  [ ] C — Làn mở
 Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
 
-> Trạng thái: §1, §2, §4, §5 (4/8 kịch bản), §7, §8 (thiếu willing users), §9 đã điền. §3, §6 và phần dữ liệu thật
-> của `validation/` còn TODO — xem cuối file.
+> Trạng thái: §1, §2, §4, §5, §7, §8 (thiếu willing users), §9 đã điền. §3, §6 và phần dữ liệu thật của `validation/`
+> còn TODO — xem cuối file. **Ưu tiên cao nhất: chưa có golden set nào chạy thật trên backend, xem §7.**
+> Prototype = duy nhất `codebase/prototype/backend/` (FastAPI + Claude) + `codebase/prototype/frontend/` (React) —
+> bản mock cũ (`index.html` + `codebase/server/`) đã bị xoá khỏi repo sau khi hoàn thành vai trò của nó (chứng minh
+> lát cắt bấm được ở CP2/CP3); lịch sử vẫn xem lại được qua `git log`.
 
 ## §1. User & Job
 
@@ -48,61 +51,90 @@ n=10, khảo sát 3 câu, log timestamp 30/07/2026 15:19–15:24 (chưa đạt n
 
 ## §4. Thiết kế
 
-- **Lát cắt MỘT CÂU:** Một học viên đang đọc slide của một buổi học · muốn nắm lại toàn bộ nội dung đã bỏ lỡ · AI quyết định độ sâu giải thích + ví dụ minh hoạ dựa trên hồ sơ học viên đã khai, luôn grounded vào đúng nội dung slide và trích trang · kết quả là một bản tóm tắt đúng tầm hiểu biết, không cần tự gõ lại "tôi chưa biết X".
+Prototype: `codebase/prototype/backend/` (FastAPI + Claude) + `codebase/prototype/frontend/` (React).
+
+- **Lát cắt MỘT CÂU:** Một học viên đang xem một tài liệu bài giảng đã tải lên hệ thống · muốn nắm lại toàn bộ nội dung
+  mình đã bỏ lỡ mà không phải đọc lại tuyến tính từ đầu · AI quyết định cấu trúc + nội dung của một cây tóm tắt phân cấp
+  (tối đa 3 tầng, mỗi nhánh gắn số trang cụ thể) dựng từ đúng nội dung PDF đã trích xuất — rồi khi học viên bấm vào một
+  nhánh, AI giải thích nhánh đó theo đúng hồ sơ năng lực đã khai (mức thuật ngữ, ví dụ minh hoạ) · kết quả là một mindmap
+  bấm-để-đào-sâu, mỗi lần giải thích đều trích trang và liệt kê trang liên quan khác để tự kiểm.
 - **Non-goals** (KHÔNG build trong sự kiện này):
-  1. Không trích xuất PDF thật (OCR/parse) — nội dung slide là dữ liệu đại diện viết tay từ `data/vlearn-pack/slides/`, không phải parser PDF sống.
-  2. Không thay thế toàn bộ chatbot tự do của VLearn (câu hỏi tự do vẫn là mock) — chỉ tối ưu đúng 1 hành động trung tâm: tóm tắt toàn slide.
-  3. Không lưu hồ sơ học viên vào DB — backend chỉ là proxy không trạng thái (stateless), hồ sơ vẫn chỉ tồn tại trong phiên trình duyệt (state JS), không có tài khoản/đăng nhập.
-- **Mức prototype:** khai báo **Mock**, với 1 quyết định trung tâm là **AI thật**:
-  - 🟢 **AI thật:** nút "Tóm tắt toàn bộ slide" gọi `POST /api/summarize` trên backend nhỏ (`codebase/server/server.js`), backend giữ `OPENAI_API_KEY` trong `.env` (không commit, không lộ ra trình duyệt) rồi gọi OpenAI Chat Completions. Backend không chạy / thiếu key / lỗi mạng → tự fallback bản mock ở client, gắn nhãn `⚪ Mock` rõ ràng, không giả vờ là AI thật. *(Đổi từ bản gọi thẳng Gemini client-side ban đầu — quyết định đổi vì key lộ trong tab Network của trình duyệt là rủi ro thật, xem §9 Changelog.)*
-  - ⚪ **Mock (rule-based, khai rõ):** onboarding quiz → persona (`computePersona()`), "Lên kế hoạch học tập" (`buildPlanPhases()`), ô hỏi tự do (`sendFree()`), toàn bộ nội dung slide hiển thị (`SLIDE_CONTENT`, `GLOSSARY`) — dữ liệu viết tay đại diện, không phải parser PDF thật.
-- **Automation:** **Augment có định hướng (giữa augment và conditional)** — AI không tự quyết định thay đổi lộ trình học của học viên, chỉ *gợi ý cách diễn giải* dựa trên hồ sơ họ tự khai; học viên toàn quyền sửa lại hồ sơ (nút "Sửa lại câu trả lời") hoặc bỏ qua gợi ý. Lý do theo cost-of-error: nếu AI đoán sai trình độ và giải thích quá đơn giản/quá khó, hậu quả là học viên hiểu sai kiến thức hoặc mất thời gian — **sai thì không rẻ** (ảnh hưởng việc học), nên không để AI tự động hoàn toàn (không chọn Automate); nhưng vì học viên luôn thấy được & sửa được hồ sơ ngay tại chỗ nên không cần mức Conditional có "chuyển người" phức tạp.
+  1. Chưa nối vào đúng data pack VLearn thật (`data/vlearn-pack/slides/`) — hiện `backend/data/raw_pdfs/` đang chứa
+     12 PDF môn Data Mining dùng làm dữ liệu demo/test lúc build (**cần thay bằng slide thật của khoá trước khi nộp
+     bản cuối/demo chính thức — xem cảnh báo ở TODO**).
+  2. Chưa hỗ trợ nhiều tài liệu song song qua sidebar — "Day02"/"Day03" hiện bị khoá cứng (`disabled` trong
+     `MainScreen.jsx`), chỉ 1 tài liệu mẫu (`SAMPLE_PDF_FILENAME`) chạy được.
+  3. Không có tài khoản/đăng nhập, không lưu lịch sử qua nhiều lần mở app — `session_id` chỉ sống trong 1 lần tải
+     trang (state React `App.jsx`); sửa lại câu trả lời onboarding chỉ làm được bằng nút "Quay lại" **trong lúc** đang
+     trả lời khảo sát, không sửa được sau khi đã vào màn chính.
+- **Mức prototype:** khai báo **Working** (không còn là Mock) — pipeline chạy thật đầu-cuối: ingest PDF thật
+  (`pymupdf`, fallback vision model cho trang ảnh) → lưu SQLite (`store.db`) → gọi Claude thật ở nhiều điểm quyết định:
+  - 🟢 **AI thật (Claude, `claude-haiku-4-5-20251001`, `codebase/prototype/backend/core/llm_client.py`):**
+    1. **Trung tâm theo lát cắt:** `GET /summary/{document_id}` (`tree_summary.py`) — sinh cây tóm tắt phân cấp từ
+       toàn bộ nội dung đã ingest, ép model chỉ dùng nội dung đã cho ("Based SOLELY on the content of the following
+       pages").
+    2. `POST /explain` (`deep_explain.py`, mode `node` hoặc `highlight`) — giải thích 1 nhánh mindmap hoặc 1 đoạn bôi
+       đen, cá nhân hoá theo `background` (chuỗi build từ onboarding), luôn trích `[Page X]` + liệt kê trang liên quan.
+    3. `POST /exercise` — sinh bài tập thực hành theo yêu cầu tự do, phù hợp trình độ.
+    4. `describe_page_with_vision_model` trong lúc ingest — mô tả trang ảnh/biểu đồ khi PDF không có text layer.
+  - ⚪ **Mock duy nhất còn lại:** nguồn PDF demo (12 file Data Mining thay vì slide VLearn thật) — không phải mock
+    hành vi AI, mà là mock *nguồn dữ liệu đầu vào*.
+- **Automation:** **Augment** — mọi giải thích/tóm tắt đều do học viên chủ động bấm (bấm node mindmap, hoặc yêu cầu bài
+  tập), AI không tự động đẩy nội dung. Lý do cost-of-error: một cây tóm tắt/giải thích sai lệch có thể khiến học viên
+  hiểu sai kiến thức nền — **sai thì không rẻ** — nên giữ augment (chờ người bấm) thay vì tự động tóm tắt toàn bộ khi
+  vừa mở tài liệu; nhưng bên trong mỗi lần giải thích, mô hình được ép grounded chặt (gần Conditional ở cấp prompt: chỉ
+  "tự tin" trả lời khi có nội dung nguồn, còn lại phải nói rõ không có).
 - **§4b. Nguyên tắc HAX/PAIR đã áp dụng (≥4):**
 
   | Nguyên tắc | Áp cụ thể vào đâu trong prototype |
   |---|---|
-  | G1 — Làm rõ hệ thống làm được gì | Banner đầu trang (`#screen-start`) nói rõ giới hạn bản hiện tại; tin chào đầu tiên trong `openReader()` liệt kê đúng 2 việc trợ lý làm được |
-  | G2 — Làm rõ nó làm tốt đến đâu | Mỗi ý trong tóm tắt gắn `(trang X)`; badge `🟢 AI thật` / `⚪ Mock` hiện ngay đầu mỗi câu trả lời để học viên biết đang xem nguồn nào |
-  | G10 — Thu hẹp phạm vi khi nghi ngờ *(bắt buộc)* | Prompt Gemini ép chỉ dùng đúng nội dung `secs` đã liệt kê, cấm bịa; lỗi API/không có key → fallback mock có nhãn, không hiển thị kết quả sai lệch như thật |
-  | G9 — Sửa dễ dàng | Nút "Sửa lại câu trả lời" ở màn hồ sơ (`#screen-profile`) cho quay lại đổi persona bất cứ lúc nào, ảnh hưởng ngay lập tức đến tóm tắt/kế hoạch lần sau |
-  | G11 — Giải thích vì sao | Khối "Vì sao vậy" trong `askPlan()` liệt kê từng câu trả lời quiz → effect tương ứng, không phải 1 câu chung chung |
+  | G2 — Làm rõ nó làm tốt đến đâu | Mọi kết quả `/explain` đều có khối "Related Pages" + trích `[Page X]` (`build_explain_prompt` trong `deep_explain.py`) — học viên tự đối chiếu với slide gốc |
+  | G10 — Thu hẹp phạm vi khi nghi ngờ *(bắt buộc)* | `TREE_PROMPT`: "Based SOLELY on the content of the following pages" (`tree_summary.py`); `JARGON_INSTRUCTION` ép chú thích mọi thuật ngữ lạ ngay khi dùng, không giả định học viên đã biết (`deep_explain.py`) |
+  | G8 — Gạt bỏ dễ dàng | `MindmapPopup`/`ExercisePopup` là popup có nút đóng (`×`) tường minh, không chặn luồng chính, học viên có thể bỏ qua bất cứ lúc nào mà không mất gì |
+  | G11 — Giải thích vì sao | Mỗi trang liên quan trong "Related Pages" có `reason` (1 dòng lý do liên quan) đi kèm, không chỉ liệt kê số trang trơ |
 
-## §5. Kiểu lỗi — kịch bản rủi ro đầu tiên (≥3, sẽ mở rộng lên ≥8 trước CP4)
+  *Gap còn lại (chưa đạt, ghi nhận trung thực thay vì che):* **G1** (chưa có màn giới thiệu rõ hệ thống làm được gì
+  trước khi vào onboarding) và **G9 đầy đủ** (sửa hồ sơ chỉ làm được trong lúc đang khảo sát, không sửa được sau khi
+  vào MainScreen) — cả hai là việc nên làm trước CP5 nếu còn thời gian.
+
+## §5. Kiểu lỗi — kịch bản rủi ro đầu tiên (≥4, sẽ mở rộng lên ≥8 trước CP4)
 
 | Tình huống cụ thể | Lớp | Hành vi mong muốn | Nguyên tắc áp |
 |---|---|---|---|
-| Model trả lời chứa thông tin không có trong `sections` (bịa thêm ngoài slide), hoặc backend/API lỗi, hết quota, hoặc backend chưa được khởi động lúc demo | ① Nguồn sự thật | Prompt (soạn ở backend) ép chỉ dùng nội dung đã liệt kê + luôn trích trang để học viên tự đối chiếu; mọi lỗi (network/HTTP/thiếu key/backend không chạy) → `catch` bắt ở client, fallback ngay sang bản mock có nhãn `⚪ Mock — không gọi được AI thật`, không để màn hình treo hay hiện lỗi thô | G10, G2 |
-| Học viên bấm "Lên kế hoạch học tập" trước khi hoàn tất 7 câu hỏi (persona chưa có) | ② Mơ hồ/thiếu thông tin | `askPlan()` kiểm tra `!persona` → không chạy, không đoán bừa dựa trên hồ sơ rỗng | G10 |
-| Học viên gõ câu hỏi ngoài phạm vi tài liệu vào ô hỏi tự do (vd đòi file PDF gốc, đòi thông tin cá nhân giảng viên — đã thấy thật trong chatlog: *"tìm file pdf quyển sách này cho tôi"*, hoặc các prompt injection kiểu đòi "admin password/API key") | ③ Ngoài phạm vi/thẩm quyền | `sendFree()` (mock) trả lời theo đúng phạm vi trợ giảng nội dung khoá, từ chối lịch sự các yêu cầu ngoài phạm vi thay vì cố trả lời | G1 |
-| Slide chứa thuật ngữ kỹ thuật (LLM, Agent, Token...) — nếu giải thích sai mức, học viên "Hiểu sâu" thấy nội dung sai/thừa thãi, học viên mới thấy quá khó và bỏ đọc | ④ Đặc thù domain | `jargonLevel`/`depthLevel` tự tính từ hồ sơ (`computePersona()`) để bật/tắt khối giải nghĩa thuật ngữ và độ sâu ví dụ theo đúng người hỏi, không dùng 1 bản giải thích chung cho tất cả | G2, G11 |
+| Claude bịa nội dung không có trong các trang đã ingest khi trả lời `/summary` hoặc `/explain` (đặc biệt dễ xảy ra nếu 1 trang bị OCR/vision-model mô tả sai) | ① Nguồn sự thật | `TREE_PROMPT`/`build_explain_prompt` ép "Based SOLELY on the content of the following pages" + luôn yêu cầu trích `[Page X]` để học viên tự đối chiếu với `PdfViewer` cạnh bên | G10, G2 |
+| Gọi Claude lỗi (401/429/timeout) khi đang ingest 1 trang cần vision-model, hoặc khi gọi `/explain`, `/exercise` — **gap đã xác nhận thật**: `ingest()` không bắt lỗi, cả PDF ingest fail hoàn toàn (đã tự gặp lỗi này khi test với key sai, xem §9); `handleExplainPending`/`handleExplainNode` ở frontend (`MainScreen.jsx`, `MindmapPopup.jsx`) dùng `try/finally` **không có `catch`** → lỗi rơi vào unhandled promise rejection, học viên không thấy thông báo gì, chỉ thấy loading tắt im lặng | ① Nguồn sự thật | *(mong muốn, CHƯA đúng thực tế — cần sửa trước CP4)*: bắt lỗi ở cả 2 phía, hiện banner rõ ràng thay vì im lặng hoặc 500 thô | G10, G2 |
+| Học viên bấm vào 1 node mindmap hoặc bôi đen đoạn văn khi `session_id` chưa có / đã hết hạn phiên (đóng tab, mở lại) | ② Mơ hồ/thiếu thông tin | `App.jsx` bắt buộc onboarding trước khi vào `MainScreen` (`if (!sessionId) return <Onboarding/>`) — không có đường nào gọi `/explain` mà thiếu `sessionId`; backend cũng tự trả 404 "Unknown session_id" nếu ai cố gọi thẳng API | G10 |
+| Học viên gõ yêu cầu bài tập ngoài phạm vi tài liệu (vd đòi đề thi thật, đòi giải hộ bài tập môn khác) vào ô tự do trong `ExercisePopup` | ③ Ngoài phạm vi/thẩm quyền | `build_exercise_prompt` chỉ đưa đúng `slide_content` của trang hiện tại làm ngữ cảnh — Claude không có gì ngoài phạm vi đó để "giúp" thêm; cần thêm case golden set kiểm tra hành vi từ chối cụ thể (chưa có, xem TODO) | G10 |
+| Slide chứa thuật ngữ kỹ thuật — học viên "chưa biết" thấy giải thích thiếu chú giải, học viên "hiểu sâu" thấy bị giải thích lại cái đã biết, gây khó chịu | ④ Đặc thù domain | `JARGON_INSTRUCTION` trong `_system_prompt(background)` (`deep_explain.py`) ép chú giải mọi thuật ngữ lạ ngay khi dùng dựa theo đúng `background` build từ onboarding — áp dụng cho mọi lượt `/explain`/`/exercise`, không phải 1 bản giải thích chung | G2, G11 |
 
 ---
 
 ## §7. Kiểm thử
 
-- **Golden set:** 21 case tự xây trong `eval/golden-set.js` (đọc thêm `eval/golden-set.md`) — ≥2 case/lớp cho đủ 4 lớp
-  chỗ khó (①②③④) + 8 case thường + 3 case hiếm; **11/21 case bám nguyên văn/tình huống thật** từ
-  `data/vlearn-pack/chatlog` (≥10 theo yêu cầu). Test đúng quyết định AI trung tâm của lát cắt (`POST /api/summarize`).
-- **4 chiều chất lượng, định nghĩa kiểm chứng được** (chi tiết trong `eval/golden-set.md`):
-  1. **D1 — Có căn cứ**: mọi số trang trích phải nằm trong `sections` đã gửi — chấm **tự động** (`eval/run-golden-set.js`).
+> ⚠️ **Chưa có golden set nào chạy được thật trên `codebase/prototype/backend/`.** Bản golden set trước đó
+> (`eval/golden-set.js`, đã xoá cùng đợt dọn code — xem §9 Changelog) test một backend khác đã không còn tồn tại.
+> `eval/golden-set-v2.js` (60 case, Phạm Tiến Đại/Nguyễn Ngọc Đạt) hiện có trong repo nhưng viết cho payload/tên file
+> khác với `main.py` thật (xem TODO) — **cần sửa xong rồi chạy trước khi §7 này có số liệu thật.** Đây là việc ưu
+> tiên cao nhất còn lại cho R4 (15đ) + R5 (8đ).
+
+- **Golden set dự kiến:** `eval/golden-set-v2.js`, 60 case theo đúng 4 lớp chỗ khó, nhắm 4 endpoint thật
+  (`/session /explain /summary/:id /exercise`) — cần sửa payload cho khớp `main.py` (§4 non-goal, TODO) trước khi
+  chạy được.
+- **4 chiều chất lượng dự kiến áp dụng** (giữ nguyên định nghĩa đã kiểm chứng độ rõ từ bản trước, chỉ đổi đối tượng
+  test):
+  1. **D1 — Có căn cứ**: mọi `[Page X]` trích trong `/explain`, `/summary` phải nằm trong tập trang đã ingest — chấm
+     tự động được (so `related_pages`/`page_refs` với `db.get_pages()`).
   2. **D2 — Không bịa nội dung ngoài slide** — chấm tay.
-  3. **D3 — An toàn/đúng phạm vi** (case lớp③ + troll) — chấm tay.
-  4. **D4 — Đúng tầm persona** (so sánh cặp cùng nội dung khác hồ sơ) — chấm tay.
+  3. **D3 — An toàn/đúng phạm vi** — chấm tay.
+  4. **D4 — Đúng tầm persona** (so sánh cặp cùng nội dung khác `background`) — chấm tay.
 - **Quality bar** (chốt tại thời điểm commit spec.md, giữ nguyên sau đó):
 
-  > Đạt khi: **≥90% case pass D1 VÀ 100% case lớp③ pass D3 VÀ ≥80% case pass D2 VÀ ≥50% cặp persona (D4) có khác biệt rõ rệt.**
+  > Đạt khi: **≥90% case pass D1 VÀ 100% case pass D3 VÀ ≥80% case pass D2 VÀ ≥50% cặp persona (D4) có khác biệt rõ rệt.**
 
-- **Kết quả các lượt chạy** (đủ mọi case kể cả case fail, không chỉnh sửa số liệu):
-  - **Lượt #1** (`eval/results-run-1.md`): D1 95,2% · D2 95,2% · D3 100% · D4 **0%** → **CHƯA đạt bar**. Phát hiện 2 lỗi
-    thật: (a) model tự bịa nội dung khi `sections` rỗng (case C04); (b) persona không đổi được cách model giải thích
-    (cặp C07, C08 giống hệt nhau).
-  - **Sửa** (`codebase/server/server.js`): chặn `sections` rỗng bằng validation 400; đổi prompt persona từ mô tả
-    chung chung sang chỉ thị điều kiện cụ thể.
-  - **Lượt #2** (`eval/results-run-2.md`): D1 100% · D2 100% · D3 100% · D4 **100%** → **Đạt quality bar**, sau đúng
-    1 vòng lặp chạy → chọn failure đau nhất → sửa → chạy lại trọn bộ.
-- **Giới hạn hiện tại:** cả 2 lượt mới do 1 người chấm D2/D3/D4 — cần người thứ 2 trong nhóm đọc lại độc lập và so
-  kết quả (guide §2.6.4) trước khi tính là "đã kiểm chứng được độ rõ của định nghĩa". Golden set nên mở rộng lên 30+
-  nếu dùng promptfoo.
+- **Kết quả các lượt chạy:** chưa có — sẽ cập nhật ngay khi golden-set-v2 chạy được trên backend thật (xem TODO).
+  *(Bản trước đã từng đo được thật trên backend cũ: lượt 1 phát hiện AI bịa nội dung khi thiếu input + persona không
+  đổi được cách giải thích, lượt 2 sau khi sửa đạt cả 4 tiêu chí — quy trình `chạy → sửa → chạy lại` này áp dụng y hệt
+  cho backend hiện tại, xem lịch sử git nếu cần tham khảo cách làm.)*
 
 ---
 
@@ -112,9 +144,9 @@ n=10, khảo sát 3 câu, log timestamp 30/07/2026 15:19–15:24 (chưa đạt n
 
 | Người | Phần phụ trách | Đã làm trong repo (để CP5 hỏi ngẫu nhiên vẫn trả lời được) |
 |---|---|---|
-| **Đỗ Quang Huy** | Spec + Evidence + Code (backend/prototype) | `spec.md` §1-§2 (evidence mining + khảo sát), §4-§5 (thiết kế + kịch bản rủi ro), `codebase/prototype/index.html`, `codebase/server/` |
-| **Phạm Tiến Đại** | Prompt engineering + Eval | Prompt trong `codebase/server/server.js` (bao gồm bản sửa persona sau lượt #1), `eval/golden-set.js`, `eval/run-golden-set.js`, `eval/results-run-1.md` + `results-run-2.md` |
-| **Nguyễn Ngọc Đạt** | Validation + Demo | `validation/README.md` + `validation/feedback-log.md` (chạy phiên test thật với ≥3 người ngoài team), chuẩn bị `demo-slides.pdf` |
+| **Đỗ Quang Huy** | Spec + Evidence | `spec.md` §1-§2 (evidence mining + khảo sát), §4-§5 (thiết kế + kịch bản rủi ro) |
+| **Phạm Tiến Đại** | Prototype (backend + frontend) | `codebase/prototype/backend/` (FastAPI + Claude: ingest PDF, tree summary, explain, exercise), `codebase/prototype/frontend/` (React) — **lát cắt được chấm chính thức, §4** |
+| **Nguyễn Ngọc Đạt** | Eval mở rộng + Validation + Demo | `eval/golden-set-v2.js` (60 case — cần adapter để chạy được trên backend thật, xem §7), `validation/README.md` + `validation/feedback-log.md` (chạy phiên test thật với ≥3 người ngoài team), chuẩn bị `demo-slides.pdf` |
 
 *(Phân công này là đề xuất dựa theo phần việc đã có trong repo tính đến thời điểm này — 3 người có thể tự đổi lại cho khớp thế mạnh thật, miễn giữ nguyên tắc: ai cũng phải giải thích được phần có tên mình.)*
 
@@ -130,17 +162,30 @@ n=10, khảo sát 3 câu, log timestamp 30/07/2026 15:19–15:24 (chưa đạt n
 |---|---|---|
 | CP2→CP3, trong ngày 1 | Đổi kiến trúc lời gọi AI thật: từ gọi thẳng Gemini bằng key nhập ở giao diện (`localStorage`) sang backend nhỏ (`codebase/server/`) giữ `OPENAI_API_KEY` trong `.env`, client gọi `POST /api/summarize` | Key nhập ở client vẫn lộ trong tab Network của trình duyệt — rủi ro thật khi demo trước đám đông. Chuyển key ra server để không bao giờ xuống trình duyệt. |
 | Sau lượt chạy golden set #1, trong ngày 1 (trước 23:59) | (1) Chặn `sections` rỗng ở `/api/summarize` (trả lỗi 400 rõ ràng). (2) Đổi đoạn hướng dẫn persona trong prompt từ mô tả chung chung sang chỉ thị điều kiện cụ thể (bắt buộc thêm ẩn dụ nếu "Code: chưa biết", bắt buộc bỏ giải thích cơ bản nếu "Code: thành thạo", bắt buộc ví dụ kinh doanh nếu "rẽ ngành") | `eval/results-run-1.md` phát hiện: (1) model tự bịa nội dung với citation giả khi `sections` rỗng; (2) 0/2 cặp so sánh persona (C07, C08) cho thấy khác biệt — persona liệt kê dạng tag không đổi được hành vi model. Chạy lại lượt #2 xác nhận cả 2 đã hết — xem `eval/results-run-2.md`. |
+| Sau khi merge nhánh `Dai_Contribute`, trong ngày 1 | (1) Sửa bug `ingest_document()` trong `core/ingest.py`: giờ kiểm tra path cached còn tồn tại trên đĩa không trước khi tin cache, không thì ingest lại. (2) Đổi lát cắt chính thức của §4 từ bản `index.html`/`codebase/server/` sang bản `codebase/prototype/backend/`+`frontend/` | (1) `store.db` commit sẵn có 1 dòng trỏ path tuyệt đối trên máy Đại (`D:\Project_Vin\vlearn-react\...`) — máy khác load PDF bị 404 "Failed to load PDF file." dù `/ingest` báo thành công. (2) Bản của Đại đầy đủ hơn hẳn (ingest PDF thật, mindmap, explain theo trang, exercise) và là bản team thực sự sẽ demo — spec.md phải mô tả đúng bản đang chạy để không mất điểm R5 "mức prototype khai báo khớp thực tế". |
+| Ngay sau đó, cùng ngày 1 | **Xoá hẳn** `codebase/prototype/index.html`, `codebase/server/` và bộ eval cũ tương ứng (`eval/golden-set.js`, `golden-set.md`, `run-golden-set.js`, `results-run-1/2.json/.md`) khỏi repo | Prototype đã chốt là bản của Đại (dòng trên) — giữ song song 2 bản gây rối cho người đọc và có thể bị chấm nhầm "mức prototype khai báo không khớp thực tế" (R5). Lịch sử/phương pháp vẫn xem lại được qua `git log` nếu cần. |
 
 ---
 
 ## TODO — các bước sau (chưa làm trong lượt này)
 
 - §3. Giải pháp tương tự đã nghiên cứu — chưa làm.
-- §5 (mở rộng) — cần lên ≥8 kịch bản, ≥2 case/lớp, trước CP4 (hiện có 4/8, đủ 4 lớp).
-- §6. Bốn đường đi trải nghiệm — chưa làm (có thể suy ra một phần từ §5 + eval, nhưng chưa viết thành mục riêng).
-- §7 *(đã điền — xem trên)* — còn thiếu: người thứ 2 chấm độc lập D2/D3/D4; mở rộng golden set lên 30+.
-- §8 *(đã điền tên — xem trên)* — còn thiếu: **willing users (≥3 tên người ngoài team)** — cần trước khi chạy `validation/`.
+- §5 *(đã viết lại theo backend thật — 5 kịch bản, xem trên)* — mở rộng lên ≥8, ≥2 case/lớp, trước CP4; ưu tiên vá
+  gap error-handling đã phát hiện (`/explain` không có `catch` ở frontend, ingest không bắt lỗi LLM).
+- §6. Bốn đường đi trải nghiệm — chưa làm.
+- **§7 — golden set chưa khớp backend thật, đây là việc ưu tiên nhất cho R4+R5:**
+  - Cần adapter chuyển persona `{answers:{...}}` của `golden-set-v2.js` sang đúng 8 field `role/goal/level_*` mà
+    `POST /session` thật cần, và đổi tên file PDF test cho khớp `backend/data/raw_pdfs/` thật (hoặc thay bằng slide
+    VLearn thật — xem non-goal #1 ở §4).
+  - Sau khi adapter xong: viết `eval/run-golden-set-v2.js` (theo mẫu `eval/run-golden-set.js`), chạy thật, ghi
+    `eval/results-v2-run-1.md`.
+  - Vẫn cần người thứ 2 chấm độc lập D2/D3/D4 cho cả 2 bộ.
+- §8 *(đã điền tên + phân công lại theo lát cắt mới — xem trên)* — còn thiếu: **willing users (≥3 tên người ngoài
+  team)** — cần trước khi chạy `validation/`.
 - **`validation/`** — đã tạo scaffold (`validation/README.md`, `validation/feedback-log.md`) nhưng **chưa có dữ liệu
   thật** — cần ≥3 người ngoài team thử trước Demo, ≥5 mẩu feedback cho CP5 (rubric R6). Đây là việc CHỈ người thật
   trong team làm được, không thể tạo hộ.
+- **Trước khi nộp bản cuối:** thay 12 PDF Data Mining trong `backend/data/raw_pdfs/` bằng slide VLearn thật
+  (`data/vlearn-pack/slides/`), và cân nhắc bỏ `store.db` khỏi git tracking (nguyên nhân bug vừa sửa — vẫn chưa
+  quyết định, xem hội thoại trước).
 - `demo-slides.pdf`, `reflection/` — chưa làm.
