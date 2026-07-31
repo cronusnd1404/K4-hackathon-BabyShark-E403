@@ -11,18 +11,22 @@ import re
 import uuid
 
 from core import db
-from core.llm_client import call_llm
-
-JARGON_INSTRUCTION = (
-    "Any term or concept that would likely be unfamiliar given the learner's "
-    "stated background must be annotated inline the moment it is used (e.g. a "
-    "short inline gloss in parentheses) -- do not assume familiarity beyond what "
-    "their background indicates. This applies uniformly, not just to hard concepts."
+from core.guardrails import (
+    MAX_SELECTED_TEXT_CHARS,
+    MAX_USER_TEXT_CHARS,
+    clean_text,
+    filter_related_pages,
+    refusal_for_highlight,
+    refusal_for_user_text,
+    remove_invalid_citations,
+    valid_page_numbers,
 )
+from core.prompts import exercise_prompt, explain_prompt, tutor_system_prompt
+from core.tutor_agent import run_tutor_agent
 
 
 def _system_prompt(background):
-    return f"You are an AI tutor. The learner's background:\n{background}\n\n{JARGON_INSTRUCTION}"
+    return tutor_system_prompt(background)
 
 
 def _format_page_index(page_index):
@@ -31,45 +35,12 @@ def _format_page_index(page_index):
 
 def build_explain_prompt(background, target_content, page_index, user_question=None):
     """Explanation only -- no exercise. Returns (system_prompt, user_prompt)."""
-    system = _system_prompt(background)
-    question_block = f'\nThe learner also specifically asked: "{user_question}"\n' if user_question else ""
-    user = f"""Explain the following content to the learner, integrating their background, general knowledge, and this material. Cite [Page X] when referencing specific pages.
-
-Content to explain:
-{target_content}
-{question_block}
-All pages in this document (for cross-referencing):
-{_format_page_index(page_index)}
-
-After the explanation, list which OTHER pages (not already part of the content above) are most related to this content and why, one line each. Omit the section entirely if truly nothing else is related.
-
-Format your response EXACTLY as:
-## Explanation
-...
-
-## Related Pages
-- Page X: <one-line reason>
-"""
-    return system, user
+    return _system_prompt(background), explain_prompt(target_content, page_index, user_question)
 
 
 def build_exercise_prompt(background, slide_content, user_request):
     """Exercise only -- no explanation. Returns (system_prompt, user_prompt)."""
-    system = _system_prompt(background)
-    user = f"""The learner asked for a practical exercise based on this slide's content, with this specific request: "{user_request}"
-
-Slide content:
-{slide_content}
-
-Provide ONE practical exercise (5-10 minutes) addressing their request, using tools/languages appropriate for their background, with verifiable input/output.
-
-Format:
-## Practical Exercise: {{short title}}
-**Objective:** ...
-**Steps:** ...
-**Expected Outcome:** ...
-"""
-    return system, user
+    return _system_prompt(background), exercise_prompt(slide_content, user_request, "current")
 
 
 def _parse_explanation_and_related(raw_text):
@@ -124,39 +95,80 @@ def explain_node(document_id, node, session_id, background, user_question=None):
     """A parent node's page_refs are the union of all its descendant leaves'
     page_refs, so the resulting explanation synthesizes across the whole branch
     rather than just describing that it has children."""
-    cached = db.get_explanation(document_id, node["id"], session_id)
+    question = clean_text(
+        user_question,
+        max_chars=MAX_USER_TEXT_CHARS,
+        field_name="user_question",
+        allow_empty=True,
+    )
+    refusal = refusal_for_user_text(question)
+    if refusal:
+        return refusal, []
+    question_hash = hashlib.sha256((question or "").encode("utf-8")).hexdigest()[:10]
+    cache_node_id = f"{node['id']}:{question_hash}"
+    cached = db.get_explanation(document_id, cache_node_id, session_id)
     if cached:
         explanation, related_json = cached
         return explanation, json.loads(related_json) if related_json else []
 
     page_refs = _collect_descendant_page_refs(node)
-    all_pages = dict(db.get_pages(document_id))
+    pages = db.get_pages(document_id)
+    all_pages = dict(pages)
     target_content = "\n\n".join(f"--- Page {p} ---\n{all_pages.get(p, '')}" for p in page_refs)
     page_index = build_page_index(document_id)
 
-    system, user = build_explain_prompt(background, target_content, page_index, user_question)
-    raw = call_llm(system, user, max_tokens=2048)
+    system, user = build_explain_prompt(background, target_content, page_index, question)
+    raw = run_tutor_agent(document_id, system, user, max_tokens=2048)
     explanation, related_pages = _parse_explanation_and_related(raw)
-    # exercise_text column repurposed to hold related_pages_json -- see PHASE2_NOTES.md
-    db.save_explanation(document_id, node["id"], session_id, explanation, json.dumps(related_pages))
+    allowed_pages = valid_page_numbers(pages)
+    explanation = remove_invalid_citations(explanation, allowed_pages)
+    related_pages = filter_related_pages(related_pages, allowed_pages, page_refs)
+    db.save_explanation(
+        document_id,
+        cache_node_id,
+        session_id,
+        explanation,
+        json.dumps(related_pages),
+    )
     return explanation, related_pages
 
 
 def explain_highlight(document_id, page_number, selected_text, session_id, background, user_question=None):
-    text_hash = hashlib.sha256(selected_text.encode("utf-8")).hexdigest()[:16]
+    selected_text = clean_text(
+        selected_text,
+        max_chars=MAX_SELECTED_TEXT_CHARS,
+        field_name="selected_text",
+    )
+    question = clean_text(
+        user_question,
+        max_chars=MAX_USER_TEXT_CHARS,
+        field_name="user_question",
+        allow_empty=True,
+    )
+    pages = db.get_pages(document_id)
+    all_pages = dict(pages)
+    if page_number not in all_pages:
+        raise ValueError("Page does not exist in current document")
+    page_content = all_pages[page_number]
+    refusal = refusal_for_highlight(selected_text, page_content, question)
+    if refusal:
+        return refusal, []
+    cache_material = f"{selected_text}\n{question or ''}"
+    text_hash = hashlib.sha256(cache_material.encode("utf-8")).hexdigest()[:16]
     cached = db.get_highlight_explanation(document_id, page_number, text_hash, session_id)
     if cached:
         explanation, related_json = cached
         return explanation, json.loads(related_json) if related_json else []
 
-    all_pages = dict(db.get_pages(document_id))
-    page_content = all_pages.get(page_number, "")
     target_content = f'Highlighted text: "{selected_text}"\n\nFull page {page_number} content for context:\n{page_content}'
     page_index = build_page_index(document_id)
 
-    system, user = build_explain_prompt(background, target_content, page_index, user_question)
-    raw = call_llm(system, user, max_tokens=2048)
+    system, user = build_explain_prompt(background, target_content, page_index, question)
+    raw = run_tutor_agent(document_id, system, user, max_tokens=2048)
     explanation, related_pages = _parse_explanation_and_related(raw)
+    allowed_pages = valid_page_numbers(pages)
+    explanation = remove_invalid_citations(explanation, allowed_pages)
+    related_pages = filter_related_pages(related_pages, allowed_pages, [page_number])
     db.save_highlight_explanation(
         document_id, page_number, text_hash, session_id, selected_text, explanation, json.dumps(related_pages)
     )
@@ -165,10 +177,24 @@ def explain_highlight(document_id, page_number, selected_text, session_id, backg
 
 def generate_exercise(document_id, page_number, session_id, user_request, background):
     """Always generates fresh -- no cache check, since user_request is free-form."""
-    all_pages = dict(db.get_pages(document_id))
-    slide_content = all_pages.get(page_number, "")
-    system, user = build_exercise_prompt(background, slide_content, user_request)
-    exercise_text = call_llm(system, user, max_tokens=1024)
+    request = clean_text(
+        user_request,
+        max_chars=MAX_USER_TEXT_CHARS,
+        field_name="user_request",
+    )
+    pages = db.get_pages(document_id)
+    all_pages = dict(pages)
+    if page_number not in all_pages:
+        raise ValueError("Page does not exist in current document")
+    slide_content = all_pages[page_number]
+    refusal = refusal_for_user_text(request)
+    if refusal:
+        exercise_text = refusal
+    else:
+        system = _system_prompt(background)
+        user = exercise_prompt(slide_content, request, page_number)
+        exercise_text = run_tutor_agent(document_id, system, user, max_tokens=1024)
+        exercise_text = remove_invalid_citations(exercise_text, valid_page_numbers(pages))
     exercise_id = str(uuid.uuid4())
-    db.create_exercise(exercise_id, document_id, page_number, session_id, user_request, exercise_text)
+    db.create_exercise(exercise_id, document_id, page_number, session_id, request, exercise_text)
     return exercise_id, exercise_text

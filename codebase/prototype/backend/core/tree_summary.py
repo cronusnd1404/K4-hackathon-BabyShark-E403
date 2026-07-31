@@ -4,23 +4,11 @@ import json
 import os
 
 from core import db
+from core.guardrails import valid_page_numbers, validate_tree
 from core.llm_client import call_text
+from core.prompts import tree_prompt, tree_system_prompt
 
 DEFAULT_SNAPSHOT_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "sample_tree.json")
-
-TREE_PROMPT = """Based SOLELY on the content of the following pages from document {document_id}:
-{pages_block}
-
-Create a hierarchical summary tree (maximum 3 levels deep). Each node must contain:
-- title
-- one_liner (1 concise sentence, objective, NOT personalized)
-- page_refs (list of specific page numbers)
-- children
-
-Return ONLY JSON adhering to this schema, with no additional text:
-{{"tree": [{{"id": "", "title": "", "one_liner": "", "page_refs": [], "children": []}}]}}
-"""
-
 
 def _build_pages_block(pages):
     return "\n\n".join(f"--- Page {number} ---\n{text}" for number, text in pages)
@@ -44,8 +32,13 @@ def _parse_tree_json(raw_text):
             text = text[len("json"):]
     start = text.find("{")
     end = text.rfind("}")
+    if start == -1 or end < start:
+        raise ValueError("Model did not return a JSON object")
     text = text[start:end + 1]
-    return json.loads(text)["tree"]
+    payload = json.loads(text)
+    if "tree" not in payload:
+        raise ValueError("Model JSON is missing tree")
+    return payload["tree"]
 
 
 def get_or_create_tree(document_id):
@@ -54,9 +47,11 @@ def get_or_create_tree(document_id):
         return json.loads(cached)
 
     pages = db.get_pages(document_id)
-    prompt = TREE_PROMPT.format(document_id=document_id, pages_block=_build_pages_block(pages))
-    raw = call_text(system="You produce only valid JSON, no prose.", user_text=prompt, max_tokens=4096)
-    tree = _parse_tree_json(raw)
+    if not pages:
+        raise ValueError("Document does not exist or has no ingested pages")
+    prompt = tree_prompt(document_id, _build_pages_block(pages))
+    raw = call_text(system=tree_system_prompt(), user_text=prompt, max_tokens=4096)
+    tree = validate_tree(_parse_tree_json(raw), valid_page_numbers(pages))
     _assign_ids(tree)
     db.save_tree(document_id, json.dumps(tree))
     return tree

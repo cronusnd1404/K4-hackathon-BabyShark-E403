@@ -1,25 +1,28 @@
 """Thin wrapper around the Anthropic API. Single provider, no HTTP layer.
 
-LLM_MODE controls which model every call uses (set in .env, default "dev"):
-  - "dev"  -> always claude-haiku-4-5-20251001 (cheap, for iterating on the demo)
-  - "demo" -> claude-opus-4-8, falling back to claude-sonnet-5 on any API error
+LLM_MODE controls model selection (set in .env, default "dev"). Model IDs can be
+overridden without code changes through ANTHROPIC_*_MODEL variables.
 """
 
 import base64
+import json
 import os
 
 import anthropic
 from dotenv import load_dotenv
 
 from core import db
+from core.prompts import VISION_PROMPT
 
 load_dotenv()
 
 LLM_MODE = os.environ.get("LLM_MODE", "dev").strip().lower()
+if LLM_MODE not in {"dev", "demo"}:
+    raise RuntimeError("LLM_MODE must be 'dev' or 'demo'")
 
-DEV_MODEL = "claude-haiku-4-5-20251001"
-PRIMARY_MODEL = "claude-haiku-4-5-20251001"
-FALLBACK_MODEL = "claude-haiku-4-5-20251001"
+DEV_MODEL = os.environ.get("ANTHROPIC_DEV_MODEL", "claude-haiku-4-5-20251001")
+PRIMARY_MODEL = os.environ.get("ANTHROPIC_PRIMARY_MODEL", DEV_MODEL)
+FALLBACK_MODEL = os.environ.get("ANTHROPIC_FALLBACK_MODEL", DEV_MODEL)
 
 _client = None
 
@@ -46,24 +49,28 @@ def _log_usage(resp):
     db.log_api_call(resp.model, input_tokens, output_tokens)
 
 
-def _call(messages, system=None, max_tokens=4096):
+def _create_message(kwargs):
     client = get_client()
     primary = DEV_MODEL if LLM_MODE == "dev" else PRIMARY_MODEL
     fallback = None if LLM_MODE == "dev" else FALLBACK_MODEL
-
-    kwargs = {"model": primary, "max_tokens": max_tokens, "messages": messages}
-    if system:
-        kwargs["system"] = system
+    kwargs = dict(kwargs, model=primary)
     try:
         resp = client.messages.create(**kwargs)
     except Exception:
         # Primary model unavailable/invalid for this account -> retry once with fallback.
-        if fallback is None:
+        if fallback is None or fallback == primary:
             raise
         kwargs["model"] = fallback
         resp = client.messages.create(**kwargs)
-
     _log_usage(resp)
+    return resp
+
+
+def _call(messages, system=None, max_tokens=4096):
+    kwargs = {"max_tokens": max_tokens, "messages": messages}
+    if system:
+        kwargs["system"] = system
+    resp = _create_message(kwargs)
     return "".join(block.text for block in resp.content if block.type == "text")
 
 
@@ -74,6 +81,66 @@ def call_text(system, user_text, max_tokens=4096):
 def call_llm(system_prompt, user_prompt, max_tokens=4096):
     """Generic alias of call_text, for callers that think in system/user prompt terms."""
     return call_text(system=system_prompt, user_text=user_prompt, max_tokens=max_tokens)
+
+
+def call_tool_agent(
+    system_prompt,
+    user_prompt,
+    tools,
+    execute_tool,
+    *,
+    max_tokens=2048,
+    max_turns=3,
+):
+    """Run a bounded Anthropic tool-use loop and return the final text."""
+    messages = [{"role": "user", "content": user_prompt}]
+    for _ in range(max_turns):
+        resp = _create_message(
+            {
+                "max_tokens": max_tokens,
+                "messages": messages,
+                "system": system_prompt,
+                "tools": tools,
+            }
+        )
+        tool_blocks = [block for block in resp.content if block.type == "tool_use"]
+        if not tool_blocks:
+            return "".join(block.text for block in resp.content if block.type == "text")
+
+        messages.append({"role": "assistant", "content": resp.content})
+        results = []
+        for block in tool_blocks:
+            try:
+                output = execute_tool(block.name, block.input)
+                content = json.dumps(output, ensure_ascii=False)
+                is_error = False
+            except (KeyError, TypeError, ValueError) as exc:
+                content = str(exc)
+                is_error = True
+            results.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": content,
+                    "is_error": is_error,
+                }
+            )
+        messages.append({"role": "user", "content": results})
+
+    messages.append(
+        {
+            "role": "user",
+            "content": "Tool budget reached. Return the final grounded answer now; do not call more tools.",
+        }
+    )
+    resp = _create_message(
+        {
+            "max_tokens": max_tokens,
+            "messages": messages,
+            "system": system_prompt,
+        }
+    )
+    return "".join(block.text for block in resp.content if block.type == "text")
 
 
 def describe_page_with_vision_model(png_bytes):
@@ -88,12 +155,7 @@ def describe_page_with_vision_model(png_bytes):
                 },
                 {
                     "type": "text",
-                    "text": (
-                        "Transcribe and describe this slide fully: all visible text "
-                        "verbatim, plus a description of any diagrams, charts, or images. "
-                        "This will be used as the page's text content for an AI tutor, so "
-                        "be thorough and objective."
-                    ),
+                    "text": VISION_PROMPT,
                 },
             ],
         }
