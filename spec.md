@@ -168,7 +168,7 @@ Prototype: `codebase/prototype/backend/` (FastAPI + Claude) + `codebase/prototyp
 |---|---|---|
 | **Đỗ Quang Huy** | Spec + Evidence | `spec.md` §1-§2 (evidence mining + khảo sát), §4-§5 (thiết kế + kịch bản rủi ro) |
 | **Phạm Tiến Đại** | Prototype (backend + frontend) | `codebase/prototype/backend/` (FastAPI + Claude: ingest PDF, tree summary, explain, exercise), `codebase/prototype/frontend/` (React) — **lát cắt được chấm chính thức, §4** |
-| **Nguyễn Ngọc Đạt** | Eval mở rộng + Validation + Demo | `eval/golden-set-v2.js` (60 case — cần adapter để chạy được trên backend thật, xem §7), `validation/README.md` + `validation/feedback-log.md` (chạy phiên test thật với ≥3 người ngoài team), chuẩn bị `demo-slides.pdf` |
+| **Bùi Ngọc Đạt** | Eval mở rộng + Validation + Demo | `eval/golden-set-v2.js` (60 case — cần adapter để chạy được trên backend thật, xem §7), `validation/README.md` + `validation/feedback-log.md` (chạy phiên test thật với ≥3 người ngoài team), chuẩn bị `demo-slides.pdf` |
 
 *(Phân công này là đề xuất dựa theo phần việc đã có trong repo tính đến thời điểm này — 3 người có thể tự đổi lại cho khớp thế mạnh thật, miễn giữ nguyên tắc: ai cũng phải giải thích được phần có tên mình.)*
 
