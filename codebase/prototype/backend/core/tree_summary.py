@@ -8,8 +8,6 @@ from core.guardrails import valid_page_numbers, validate_tree
 from core.llm_client import call_text
 from core.prompts import tree_prompt, tree_system_prompt
 
-DEFAULT_SNAPSHOT_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "sample_tree.json")
-
 def _build_pages_block(pages):
     return "\n\n".join(f"--- Page {number} ---\n{text}" for number, text in pages)
 
@@ -41,10 +39,11 @@ def _parse_tree_json(raw_text):
     return payload["tree"]
 
 
-def get_or_create_tree(document_id):
-    cached = db.get_tree(document_id)
-    if cached:
-        return json.loads(cached)
+def get_or_create_tree(document_id, force_refresh=False):
+    if not force_refresh:
+        cached = db.get_tree(document_id)
+        if cached:
+            return json.loads(cached)
 
     pages = db.get_pages(document_id)
     if not pages:

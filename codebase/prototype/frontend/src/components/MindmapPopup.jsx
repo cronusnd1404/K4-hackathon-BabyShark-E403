@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import ChatboxPanel from './ChatboxPanel'
 import { getSummary, explain } from '../api'
-import { scrollToPage } from '../scrollToPage'
+import { scrollToPage, scrollToPageAndHighlight } from '../scrollToPage'
 import {
   buildFullTree,
   calculateFitViewport,
@@ -91,6 +91,7 @@ export default function MindmapPopup({ documentId, sessionId, chatHistory, setCh
   const [selectedNode, setSelectedNode] = useState(null)
   const [explainLoadingId, setExplainLoadingId] = useState(null)
   const [explainError, setExplainError] = useState('')
+  const [refreshing, setRefreshing] = useState(false)
   const [mobileTab, setMobileTab] = useState('map')
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const [viewport, setViewport] = useState({ zoom: 1, translate: { x: 0, y: 0 } })
@@ -148,6 +149,22 @@ export default function MindmapPopup({ documentId, sessionId, chatHistory, setCh
     observer.observe(area)
     return () => observer.disconnect()
   }, [])
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    setSummaryError('')
+    try {
+      const res = await getSummary(documentId, true)
+      const tree = Array.isArray(res.tree) ? res.tree : []
+      setRawTree(tree)
+      setCollapsedNodeIds(new Set())
+      setSummaryStatus(tree.length > 0 ? 'ready' : 'empty')
+    } catch (err) {
+      setSummaryError(err.message || 'Không thể tạo lại tóm tắt.')
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   const fullTree = useMemo(() => buildFullTree(rawTree), [rawTree])
   const displayTree = useMemo(
@@ -265,6 +282,9 @@ export default function MindmapPopup({ documentId, sessionId, chatHistory, setCh
             <p>Chọn chủ đề để xem nhanh hoặc yêu cầu giải thích sâu.</p>
           </div>
           <div className="mindmap-toolbar" aria-label="Điều khiển mind map">
+            <ToolButton label="Tạo lại tóm tắt" onClick={handleRefresh} disabled={refreshing}>
+              <RotateCcw size={17} className={refreshing ? 'spin' : ''} />
+            </ToolButton>
             <ToolButton label="Thu nhỏ" onClick={() => updateZoom(-0.15)} disabled={!displayTree || zoomLabel <= MIN_ZOOM}>
               <Minus size={17} />
             </ToolButton>
@@ -404,7 +424,10 @@ export default function MindmapPopup({ documentId, sessionId, chatHistory, setCh
               pendingSelection={null}
               loading={false}
               onExplainPending={async () => {}}
-              onRelatedPageClick={handlePageClick}
+              onRelatedPageClick={(pageNumber, term) => {
+                onClose()
+                scrollToPageAndHighlight(pageNumber, term)
+              }}
             />
           </aside>
         </div>

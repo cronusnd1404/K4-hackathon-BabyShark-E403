@@ -1,10 +1,14 @@
 .DS_Store
 node_modules/
 *.env
+.venv/
 __pycache__/
 *.pyc
+*.log
+*.db
 .agents/skills/
 data/skills/*
 agent/skills/*
 .claude/skills/*
 *skills-lock.json
+

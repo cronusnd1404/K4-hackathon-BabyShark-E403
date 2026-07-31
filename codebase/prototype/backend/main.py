@@ -6,15 +6,17 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from core import db
-from core.deep_explain import explain_highlight, explain_node, generate_exercise
+from core.deep_explain import explain_highlight, explain_node, explain_question, generate_quiz
 from core.guardrails import MAX_SELECTED_TEXT_CHARS, MAX_USER_TEXT_CHARS, refusal_for_user_text
 from core.ingest import ingest_document
 from core.tree_summary import find_node, get_or_create_tree
 
 RAW_PDF_DIR = Path(__file__).resolve().parent / "data" / "raw_pdfs"
+FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
 ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.environ.get(
@@ -35,8 +37,10 @@ app.add_middleware(
 )
 
 
-@app.get("/")
+@app.get("/healthz")
 def read_root():
+    # Not "/" -- that path must fall through to the StaticFiles mount at the
+    # bottom of this file so it serves the built frontend's index.html.
     return {"status": "ok"}
 
 
@@ -82,6 +86,14 @@ def create_session(payload: SessionRequest):
     return {"session_id": session_id}
 
 
+# --- PDF list (for the sidebar) -----------------------------------------------
+
+@app.get("/pdfs")
+def list_pdfs():
+    filenames = sorted(f for f in os.listdir(RAW_PDF_DIR) if f.lower().endswith(".pdf"))
+    return [{"filename": f, "label": os.path.splitext(f)[0]} for f in filenames]
+
+
 # --- Ingest ------------------------------------------------------------------
 
 class IngestRequest(StrictRequest):
@@ -113,26 +125,27 @@ def get_pdf(document_id: str):
 # --- Summary tree --------------------------------------------------------------
 
 @app.get("/summary/{document_id}")
-def get_summary(document_id: str):
+def get_summary(document_id: str, refresh: bool = False):
     if not db.get_pages(document_id):
         raise HTTPException(status_code=404, detail="Unknown document_id")
     try:
-        tree = get_or_create_tree(document_id)
+        tree = get_or_create_tree(document_id, force_refresh=refresh)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"tree": tree}
 
 
-# --- Explain (node or highlight) --------------------------------------------
+# --- Explain (node, highlight, or question) --------------------------------------------
 
 class ExplainRequest(StrictRequest):
     document_id: str = Field(min_length=1, max_length=255)
     session_id: str = Field(min_length=1, max_length=64)
-    mode: Literal["node", "highlight"]
+    mode: Literal["node", "highlight", "question"]
     node_id: Optional[str] = Field(default=None, max_length=255)
     page_number: Optional[int] = Field(default=None, ge=1)
     selected_text: Optional[str] = Field(default=None, max_length=MAX_SELECTED_TEXT_CHARS)
     user_question: Optional[str] = Field(default=None, max_length=MAX_USER_TEXT_CHARS)
+    chat_history: Optional[list[dict]] = None
 
 
 @app.post("/explain")
@@ -154,7 +167,7 @@ def explain(payload: ExplainRequest):
             explanation, related_pages = explain_node(
                 payload.document_id, node, payload.session_id, background, payload.user_question
             )
-        else:
+        elif payload.mode == "highlight":
             if payload.page_number is None or not payload.selected_text:
                 raise HTTPException(
                     status_code=400, detail="page_number and selected_text required for mode=highlight"
@@ -167,45 +180,48 @@ def explain(payload: ExplainRequest):
                 background,
                 payload.user_question,
             )
+        elif payload.mode == "question":
+            if payload.page_number is None or not payload.user_question:
+                raise HTTPException(
+                    status_code=400, detail="page_number and user_question required for mode=question"
+                )
+            explanation, related_pages = explain_question(
+                payload.document_id, payload.page_number, background, payload.user_question, payload.chat_history
+            )
+        else:
+            raise HTTPException(status_code=400, detail="mode must be 'node', 'highlight', or 'question'")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return {"explanation": explanation, "related_pages": related_pages}
 
 
-# --- Exercises ---------------------------------------------------------------
+# --- Quiz (whole-document multiple choice) ------------------------------------
 
-class ExerciseRequest(StrictRequest):
+class QuizRequest(StrictRequest):
     document_id: str = Field(min_length=1, max_length=255)
     session_id: str = Field(min_length=1, max_length=64)
-    page_number: int = Field(ge=1)
-    user_request: str = Field(min_length=1, max_length=MAX_USER_TEXT_CHARS)
+    user_request: str = Field(default="", max_length=MAX_USER_TEXT_CHARS)
+    num_questions: int = Field(default=5, ge=1, le=20)
 
 
-@app.post("/exercise")
-def create_exercise_endpoint(payload: ExerciseRequest):
+@app.post("/quiz")
+def create_quiz_endpoint(payload: QuizRequest):
     background = db.get_session_background(payload.session_id)
     if background is None:
         raise HTTPException(status_code=404, detail="Unknown session_id")
     if not db.get_pages(payload.document_id):
         raise HTTPException(status_code=404, detail="Unknown document_id")
     try:
-        exercise_id, exercise_text = generate_exercise(
-            payload.document_id,
-            payload.page_number,
-            payload.session_id,
-            payload.user_request,
-            background,
+        quiz_id, questions = generate_quiz(
+            payload.document_id, payload.session_id, payload.user_request, background, payload.num_questions
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"exercise_id": exercise_id, "exercise_text": exercise_text}
+    return {"quiz_id": quiz_id, "questions": questions}
 
 
-@app.get("/exercises/{document_id}/{page_number}")
-def list_exercises_endpoint(document_id: str, page_number: int, session_id: str):
-    rows = db.list_exercises(document_id, page_number, session_id)
-    return [
-        {"exercise_id": r[0], "user_request": r[1], "exercise_text": r[2], "created_at": r[3]}
-        for r in rows
-    ]
+# --- Frontend (production build only) -----------------------------------------
+if os.path.isdir(FRONTEND_DIST):
+    app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")
+

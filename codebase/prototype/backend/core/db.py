@@ -71,13 +71,12 @@ CREATE TABLE IF NOT EXISTS highlight_explanations (
     PRIMARY KEY (document_id, page_number, selected_text_hash, session_id)
 );
 
-CREATE TABLE IF NOT EXISTS exercises (
-    exercise_id TEXT PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS quizzes (
+    quiz_id TEXT PRIMARY KEY,
     document_id TEXT NOT NULL,
-    page_number INTEGER NOT NULL,
     session_id TEXT NOT NULL,
     user_request TEXT NOT NULL,
-    exercise_text TEXT NOT NULL,
+    questions_json TEXT NOT NULL,
     created_at TEXT
 );
 """
@@ -319,30 +318,14 @@ def save_highlight_explanation(
     conn.close()
 
 
-def create_exercise(exercise_id, document_id, page_number, session_id, user_request, exercise_text):
+def create_quiz(quiz_id, document_id, session_id, user_request, questions_json):
     conn = get_conn()
     conn.execute(
         """
-        INSERT INTO exercises
-            (exercise_id, document_id, page_number, session_id, user_request, exercise_text, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO quizzes (quiz_id, document_id, session_id, user_request, questions_json, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (exercise_id, document_id, page_number, session_id, user_request, exercise_text, _now()),
+        (quiz_id, document_id, session_id, user_request, questions_json, _now()),
     )
     conn.commit()
     conn.close()
-
-
-def list_exercises(document_id, page_number, session_id):
-    conn = get_conn()
-    cur = conn.execute(
-        """
-        SELECT exercise_id, user_request, exercise_text, created_at FROM exercises
-        WHERE document_id = ? AND page_number = ? AND session_id = ?
-        ORDER BY created_at
-        """,
-        (document_id, page_number, session_id),
-    )
-    rows = cur.fetchall()
-    conn.close()
-    return rows

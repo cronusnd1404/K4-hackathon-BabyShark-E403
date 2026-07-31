@@ -143,6 +143,14 @@ def call_tool_agent(
     return "".join(block.text for block in resp.content if block.type == "text")
 
 
+def call_chat(system, messages, max_tokens=4096):
+    """Like call_text, but takes a real multi-turn message list (alternating
+    user/assistant, ending in "user") so prior chat turns are passed as actual
+    conversation instead of being flattened into one text blob."""
+    return _call(messages, system=system, max_tokens=max_tokens)
+
+
+
 def describe_page_with_vision_model(png_bytes):
     b64 = base64.standard_b64encode(png_bytes).decode("utf-8")
     messages = [

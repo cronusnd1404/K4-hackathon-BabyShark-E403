@@ -13,7 +13,7 @@ Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
 
 - **Job executor:** Học viên chương trình thực chiến (đa số sinh viên CNTT/vừa tốt nghiệp CNTT, có một nhóm rẽ ngành từ lĩnh vực khác sang) đang trong buổi học hoặc chuẩn bị trước buổi học.
 - **Core JTBD** *(không tên sản phẩm/AI)*: Khi gặp một khái niệm chưa nắm được trong lúc học, học viên muốn hiểu đúng ngay tại thời điểm đó theo đúng tầm hiểu biết của mình, để không bị tụt lại phía sau phần còn lại của buổi học.
-  - *Job story:* When đang đọc slide hoặc nghe giảng và gặp khái niệm lạ, I want to được giải thích đúng tầm hiểu biết của mình ngay lập tức (không phải giải thích chung chung cho "mọi trình độ"), so I can theo kịp phần tiếp theo của buổi học mà không phải dừng lại tra cứu ngoài.
+  - *Job story:* khi  đang đọc slide hoặc nghe giảng và gặp khái niệm lạ, Tôi muốn được giải thích đúng tầm hiểu biết của mình ngay lập tức (không phải giải thích chung chung cho "mọi trình độ"), để tôi có thể theo kịp phần tiếp theo của buổi học mà không phải dừng lại tra cứu ngoài.
   - Tự kiểm bỏ AI: việc "muốn hiểu đúng tầm ngay khi vướng" vẫn tồn tại nếu không có AI — học viên vẫn làm việc này bằng cách hỏi bạn/TA/tự tra Google → job hợp lệ, không phải chỗ nhét AI.
 - **Problem statement** *(không chữ AI)*: Học viên phải tự gõ lại rằng mình chưa biết một khái niệm ("trả lời cho một sinh viên SE chưa hiểu") thì mới được giải thích đúng tầm; và khi muốn nắm lại toàn bộ một buổi học đã bỏ lỡ một phần (vì tài liệu dài/nhiều thuật ngữ), không có cách nào tổng hợp nhanh — phải tự bôi đen từng đoạn nhỏ.
 
@@ -32,7 +32,7 @@ Nguồn: `data/vlearn-pack/chatlog/chat_history_anonymized_for_hackathon.csv` �
   5. *(Trang 1)* "Tui không hiểu" — phản hồi thất vọng khi mức giải thích không khớp trình độ người hỏi.
   6. "Canvas là hệ thống gì? nếu tôi không phải sinh viên của trường thì làm sao có thể truy cập" — xác nhận có học viên không quen hệ thống/nền tảng khác nhau về xuất phát điểm.
 
-**Đường A — khảo sát nội bộ (mầm, đang mở rộng):**
+**Đường A — khảo sát nội bộ (Ngầm, đang mở rộng):**
 n=10, khảo sát 3 câu, log timestamp 30/07/2026 15:19–15:24 (chưa đạt ngưỡng ≥20 người ngoài nhóm của chuẩn A đầy đủ — dùng bổ sung, chuẩn dựa chính vào Đường B ở trên).
 
 - 50% (5/10) bỏ đọc slide giữa chừng trước buổi vì "quá dài / quá nhiều thuật ngữ".
