@@ -11,7 +11,10 @@ import sqlite3
 import uuid
 from datetime import datetime, timezone
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "store.db")
+DB_PATH = os.environ.get(
+    "VLEARN_DB_PATH",
+    os.path.join(os.path.dirname(__file__), "..", "data", "store.db"),
+)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS documents (

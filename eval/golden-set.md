@@ -1,6 +1,8 @@
-# Golden set — quyết định AI trung tâm ("Tóm tắt toàn bộ slide")
+# Golden set v1 (legacy) — quyết định AI trung tâm ("Tóm tắt toàn bộ slide")
 
 Nguồn dữ liệu thật: `eval/golden-set.js` (21 case — chạy bằng `eval/run-golden-set.js`).
+Đây là checkpoint lịch sử cho Express `POST /api/summarize`, không phải bộ test cho FastAPI hiện tại.
+Golden set hiện tại nằm ở `eval/golden-set-v2.js`; xem rubric tại `eval/review-v2-rubric.md`.
 Cơ cấu theo `02-guide.md` §2.6: ≥2 case/lớp chỗ khó (4 lớp) + 8-10 case thường + 2-4 case hiếm,
 ≥10 case từ chatlog thật.
 

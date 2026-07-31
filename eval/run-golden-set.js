@@ -4,12 +4,16 @@
  * D2/D3/D4 (không bịa nội dung / an toàn phạm vi / đúng tầm persona) cần đọc output
  * bằng mắt — script chỉ in ra để người chấm điền, không tự suy đoán các dimension này.
  *
- * Chạy: SERVER_URL=http://localhost:3000 node eval/run-golden-set.js
+ * Chạy: SERVER_URL=http://localhost:3000 RUN_ID=legacy-local node eval/run-golden-set.js
  * Yêu cầu server (codebase/server) đang chạy và đã có OPENAI_API_KEY trong .env.
  */
 const { GOLDEN_SET } = require('./golden-set');
 
 const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3000';
+const RUN_ID = process.env.RUN_ID || 'legacy-local';
+if (!/^[A-Za-z0-9._-]+$/.test(RUN_ID)) {
+  throw new Error('RUN_ID may contain only letters, numbers, dot, underscore, and dash');
+}
 
 function extractCitedPages(text) {
   const matches = [...text.matchAll(/trang\s+(\d+)/gi)];
@@ -55,7 +59,10 @@ async function runCase(c) {
   }
   const fs = require('fs');
   const path = require('path');
-  const outPath = path.join(__dirname, 'results-run-1.json');
+  const outPath = path.join(__dirname, `results-${RUN_ID}.json`);
+  if (fs.existsSync(outPath) && process.env.OVERWRITE_RESULTS !== '1') {
+    throw new Error(`Refusing to overwrite ${outPath}; choose another RUN_ID or set OVERWRITE_RESULTS=1`);
+  }
   fs.writeFileSync(outPath, JSON.stringify({ ranAt: new Date().toISOString(), results }, null, 2));
   const total = results.length;
   const okCount = results.filter(r => r.ok).length;

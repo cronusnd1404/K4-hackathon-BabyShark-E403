@@ -26,6 +26,7 @@ _OUT_OF_SCOPE_PATTERNS = (
     r"\b(api key|admin password|mật khẩu quản trị|thông tin cá nhân)\b",
     r"\b(tôi|t|mình)\b.{0,20}\b(đẹp trai|đẹp gái|xinh|giàu)\b",
     r"\b(find|download|tìm|tải)\b.{0,30}\b(pdf gốc|original pdf|private file|file riêng)\b",
+    r"\b(hack|tấn công|xâm nhập|exploit)\b.{0,40}\b(hệ thống|system|tài khoản|account)\b",
 )
 
 

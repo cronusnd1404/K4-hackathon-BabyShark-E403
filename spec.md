@@ -80,14 +80,21 @@ n=10, khảo sát 3 câu, log timestamp 30/07/2026 15:19–15:24 (chưa đạt n
 
 ## §7. Kiểm thử
 
-- **Golden set:** 21 case tự xây trong `eval/golden-set.js` (đọc thêm `eval/golden-set.md`) — ≥2 case/lớp cho đủ 4 lớp
-  chỗ khó (①②③④) + 8 case thường + 3 case hiếm; **11/21 case bám nguyên văn/tình huống thật** từ
-  `data/vlearn-pack/chatlog` (≥10 theo yêu cầu). Test đúng quyết định AI trung tâm của lát cắt (`POST /api/summarize`).
-- **4 chiều chất lượng, định nghĩa kiểm chứng được** (chi tiết trong `eval/golden-set.md`):
-  1. **D1 — Có căn cứ**: mọi số trang trích phải nằm trong `sections` đã gửi — chấm **tự động** (`eval/run-golden-set.js`).
+- **Checkpoint v1 (legacy):** 21 case trong `eval/golden-set.js` (xem `eval/golden-set.md`) kiểm thử Express
+  `POST /api/summarize`: ≥2 case/lớp cho đủ 4 lớp chỗ khó + 8 case thường + 3 case hiếm; **11/21 case**
+  bám chatlog thật. Đây là bằng chứng lịch sử, không được trình bày như kết quả của FastAPI hiện tại.
+- **Golden set v2 (FastAPI hiện tại):** 59 case trong `eval/golden-set-v2.js`, phủ `POST /session`,
+  `GET /summary/{document_id}`, `POST /explain` và `POST /exercise`; **12/59 case** bám chatlog thật.
+  `eval/run-golden-set-v2.js` kiểm schema offline bằng `--dry-run`, hoặc seed DB tạm qua `VLEARN_DB_PATH`,
+  khởi động backend cô lập và chạy đủ bộ khi có `ANTHROPIC_API_KEY`.
+- **6 chiều chất lượng v2, định nghĩa kiểm chứng được** (chi tiết trong `eval/review-v2-rubric.md`):
+  1. **D1 — Có căn cứ**: mọi citation, `page_refs` và `related_pages` phải thuộc fixture đã seed — chấm **tự động**
+     (`eval/run-golden-set-v2.js`), số liệu vẫn được reviewer đối chiếu.
   2. **D2 — Không bịa nội dung ngoài slide** — chấm tay.
   3. **D3 — An toàn/đúng phạm vi** (case lớp③ + troll) — chấm tay.
   4. **D4 — Đúng tầm persona** (so sánh cặp cùng nội dung khác hồ sơ) — chấm tay.
+  5. **D5 — Liên kết chéo có căn cứ** — chấm tay.
+  6. **D6 — Bài tập bám trang, đúng format và tự kiểm được** — chấm tay.
 - **Quality bar** (chốt tại thời điểm commit spec.md, giữ nguyên sau đó):
 
   > Đạt khi: **≥90% case pass D1 VÀ 100% case lớp③ pass D3 VÀ ≥80% case pass D2 VÀ ≥50% cặp persona (D4) có khác biệt rõ rệt.**
@@ -100,9 +107,21 @@ n=10, khảo sát 3 câu, log timestamp 30/07/2026 15:19–15:24 (chưa đạt n
     chung chung sang chỉ thị điều kiện cụ thể.
   - **Lượt #2** (`eval/results-run-2.md`): D1 100% · D2 100% · D3 100% · D4 **100%** → **Đạt quality bar**, sau đúng
     1 vòng lặp chạy → chọn failure đau nhất → sửa → chạy lại trọn bộ.
-- **Giới hạn hiện tại:** cả 2 lượt mới do 1 người chấm D2/D3/D4 — cần người thứ 2 trong nhóm đọc lại độc lập và so
-  kết quả (guide §2.6.4) trước khi tính là "đã kiểm chứng được độ rõ của định nghĩa". Golden set nên mở rộng lên 30+
-  nếu dùng promptfoo.
+  - Hai lượt trên chỉ thuộc v1. **V2 chưa có kết quả live được commit** vì môi trường hiện tại chưa có
+    `ANTHROPIC_API_KEY`; không dùng mock để thay thế bằng chứng chất lượng.
+- **Kết quả xác minh v2 ngày 31/07/2026:**
+  - `node eval/run-golden-set-v2.js --dry-run`: **PASS 59/59 case về cấu trúc**; đúng **12 case chatlog**,
+    phân bố endpoint gồm 33 explain · 7 summary · 12 exercise · 7 onboarding; không gọi model và không ghi result giả.
+  - `python -m pytest -q` tại backend: **PASS 20/20 unit/regression test** trong 3,21 giây; còn 1 warning deprecation
+    từ `fastapi.testclient`/Starlette, không làm test fail.
+  - Smoke test `eval/seed-golden-v2.py`: **PASS**, tạo DB tạm, seed và đọc lại document thành công; không chạm
+    `codebase/prototype/backend/data/store.db`.
+  - `node --check` cho golden set và hai runner, `python -m compileall` cho backend, cùng `git diff --check`:
+    **PASS**, không có lỗi syntax/compile/whitespace.
+  - **Chưa chấm quality bar v2:** chưa chạy 59 case với model thật, nên chưa có điểm D1-D6 và chưa được kết luận
+    đạt/chưa đạt chất lượng AI.
+- **Giới hạn hiện tại:** v1 mới do 1 người chấm D2/D3/D4. V2 đã đủ 59 case nhưng còn phải chạy live và cần
+  người thứ 2 chấm D2-D6 độc lập theo `eval/review-v2-rubric.md` trước khi công bố đạt.
 
 ---
 
@@ -138,7 +157,7 @@ n=10, khảo sát 3 câu, log timestamp 30/07/2026 15:19–15:24 (chưa đạt n
 - §3. Giải pháp tương tự đã nghiên cứu — chưa làm.
 - §5 (mở rộng) — cần lên ≥8 kịch bản, ≥2 case/lớp, trước CP4 (hiện có 4/8, đủ 4 lớp).
 - §6. Bốn đường đi trải nghiệm — chưa làm (có thể suy ra một phần từ §5 + eval, nhưng chưa viết thành mục riêng).
-- §7 *(đã điền — xem trên)* — còn thiếu: người thứ 2 chấm độc lập D2/D3/D4; mở rộng golden set lên 30+.
+- §7 *(đã điền — xem trên)* — còn thiếu: chạy live đủ 59 case v2 và người thứ 2 chấm độc lập D2-D6.
 - §8 *(đã điền tên — xem trên)* — còn thiếu: **willing users (≥3 tên người ngoài team)** — cần trước khi chạy `validation/`.
 - **`validation/`** — đã tạo scaffold (`validation/README.md`, `validation/feedback-log.md`) nhưng **chưa có dữ liệu
   thật** — cần ≥3 người ngoài team thử trước Demo, ≥5 mẩu feedback cho CP5 (rubric R6). Đây là việc CHỈ người thật

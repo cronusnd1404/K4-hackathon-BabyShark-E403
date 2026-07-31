@@ -6,7 +6,7 @@ from typing import Literal, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from core import db
 from core.deep_explain import explain_highlight, explain_node, generate_exercise
@@ -18,6 +18,7 @@ from core.ingestion_jobs import (
     queue_document,
     resume_pending_jobs,
 )
+from core.onboarding import PROFILE_OPTIONS
 from core.tree_summary import find_node, get_or_create_tree
 
 RAW_PDF_DIR = Path(__file__).resolve().parent / "data" / "raw_pdfs"
@@ -85,9 +86,11 @@ class SessionRequest(StrictRequest):
 
     @field_validator("*")
     @classmethod
-    def reject_profile_injection(cls, value):
+    def reject_profile_injection(cls, value, info: ValidationInfo):
         if refusal_for_user_text(value):
             raise ValueError("profile answer contains disallowed instructions or sensitive-data requests")
+        if value not in PROFILE_OPTIONS[info.field_name]:
+            raise ValueError("profile answer is not one of the allowed survey options")
         return value
 
 
