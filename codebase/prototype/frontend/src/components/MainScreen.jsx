@@ -1,12 +1,12 @@
-import { useEffect, useState, useCallback } from 'react'
+import { lazy, Suspense, useEffect, useState, useCallback } from 'react'
 import PdfViewer from './PdfViewer'
 import ChatboxPanel from './ChatboxPanel'
-import MindmapPopup from './MindmapPopup'
 import ExercisePopup from './ExercisePopup'
 import { ingestPdf, pdfUrl, explain } from '../api'
 import { scrollToPage } from '../scrollToPage'
 
 const SAMPLE_PDF_FILENAME = 'L11-SVM.pdf'
+const MindmapPopup = lazy(() => import('./MindmapPopup'))
 
 export default function MainScreen({ sessionId, documentId, setDocumentId, chatHistory, setChatHistory }) {
   const [ingestError, setIngestError] = useState(null)
@@ -92,13 +92,21 @@ export default function MainScreen({ sessionId, documentId, setDocumentId, chatH
       />
 
       {activePopup === 'mindmap' && documentId && (
-        <MindmapPopup
-          documentId={documentId}
-          sessionId={sessionId}
-          chatHistory={chatHistory}
-          setChatHistory={setChatHistory}
-          onClose={() => setActivePopup(null)}
-        />
+        <Suspense
+          fallback={
+            <div className="popup-overlay" role="status">
+              <div className="popup-loading">Đang mở mind map...</div>
+            </div>
+          }
+        >
+          <MindmapPopup
+            documentId={documentId}
+            sessionId={sessionId}
+            chatHistory={chatHistory}
+            setChatHistory={setChatHistory}
+            onClose={() => setActivePopup(null)}
+          />
+        </Suspense>
       )}
 
       {activePopup === 'exercise' && documentId && (
