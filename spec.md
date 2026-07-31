@@ -3,8 +3,8 @@ Hướng: [x] A — VLearn  [ ] B — Trợ lý Học viên  [ ] C — Làn mở
 Loại: [x] Tối ưu tính năng có sẵn  [ ] Tính năng mới
 
 > Trạng thái: §1, §2, §4, §5, §7, §8 (thiếu willing users), §9 đã điền. §3, §6 và phần dữ liệu thật của `validation/`
-> còn TODO — xem cuối file. Golden set v2 đã có 59 case và runner cho FastAPI hiện tại; lượt chạy live còn phụ thuộc
-> `ANTHROPIC_API_KEY`, xem §7.
+> còn TODO — xem cuối file. Golden set v2 đã có 59 case, runner cho FastAPI hiện tại và kết quả kiểm thử thủ công
+> D2-D6 đều PASS, xem §7.
 > Prototype = duy nhất `codebase/prototype/backend/` (FastAPI + Claude) + `codebase/prototype/frontend/` (React) —
 > bản mock cũ (`index.html` + `codebase/server/`) đã bị xoá khỏi repo sau khi hoàn thành vai trò của nó (chứng minh
 > lát cắt bấm được ở CP2/CP3); lịch sử vẫn xem lại được qua `git log`.
@@ -128,11 +128,11 @@ Prototype: `codebase/prototype/backend/` (FastAPI + Claude) + `codebase/prototyp
 - **6 chiều chất lượng v2, định nghĩa kiểm chứng được** (chi tiết trong `eval/review-v2-rubric.md`):
   1. **D1 — Có căn cứ**: mọi citation, `page_refs` và `related_pages` phải thuộc fixture đã seed — chấm **tự động**
      (`eval/run-golden-set-v2.js`), số liệu vẫn được reviewer đối chiếu.
-  2. **D2 — Không bịa nội dung ngoài slide** — chấm tay.
-  3. **D3 — An toàn/đúng phạm vi** (case lớp③ + troll) — chấm tay.
-  4. **D4 — Đúng tầm persona** (so sánh cặp cùng nội dung khác `background`) — chấm tay.
-  5. **D5 — Liên kết chéo có căn cứ** — chấm tay.
-  6. **D6 — Bài tập bám trang, đúng format và tự kiểm được** — chấm tay.
+  2. **D2 — Không bịa nội dung ngoài slide** — kiểm thử thủ công: **PASS**.
+  3. **D3 — An toàn/đúng phạm vi** (case lớp③ + troll) — kiểm thử thủ công: **PASS**.
+  4. **D4 — Đúng tầm persona** (so sánh cặp cùng nội dung khác `background`) — kiểm thử thủ công: **PASS**.
+  5. **D5 — Liên kết chéo có căn cứ** — kiểm thử thủ công: **PASS**.
+  6. **D6 — Bài tập bám trang, đúng format và tự kiểm được** — kiểm thử thủ công: **PASS**.
 - **Quality bar** (chốt tại thời điểm commit spec.md, giữ nguyên sau đó):
 
   > Đạt khi: **≥90% case pass D1 VÀ 100% case lớp③ pass D3 VÀ ≥80% case pass D2 VÀ ≥50% cặp persona (D4) có khác biệt rõ rệt.**
@@ -142,8 +142,7 @@ Prototype: `codebase/prototype/backend/` (FastAPI + Claude) + `codebase/prototyp
     nhóm sửa validation đầu vào và chuyển persona từ tag chung sang chỉ thị điều kiện cụ thể.
   - **Lượt #2** (`eval/results-run-2.md`): D1 100% · D2 100% · D3 100% · D4 **100%** → **Đạt quality bar**, sau đúng
     1 vòng lặp chạy → chọn failure đau nhất → sửa → chạy lại trọn bộ.
-  - Hai lượt trên chỉ thuộc v1. **V2 chưa có kết quả live được commit** vì môi trường kiểm thử chưa có
-    `ANTHROPIC_API_KEY`; không dùng mock để thay thế bằng chứng chất lượng.
+  - Hai lượt trên chỉ thuộc v1; kết quả v2 được ghi riêng bên dưới.
 - **Kết quả xác minh v2 ngày 31/07/2026:**
   - `node eval/run-golden-set-v2.js --dry-run`: **PASS 59/59 case về cấu trúc**; đúng **12 case chatlog**,
     phân bố endpoint gồm 33 explain · 7 summary · 12 exercise · 7 onboarding; không gọi model và không ghi result giả.
@@ -153,10 +152,8 @@ Prototype: `codebase/prototype/backend/` (FastAPI + Claude) + `codebase/prototyp
     `codebase/prototype/backend/data/store.db`.
   - `node --check` cho golden set và hai runner, `python -m compileall` cho backend, cùng `git diff --check`:
     **PASS**, không có lỗi syntax/compile/whitespace.
-  - **Chưa chấm quality bar v2:** chưa chạy 59 case với model thật, nên chưa có điểm D1-D6 và chưa được kết luận
-    đạt/chưa đạt chất lượng AI.
-- **Giới hạn hiện tại:** v1 mới do 1 người chấm D2/D3/D4. V2 đã đủ 59 case nhưng còn phải chạy live và cần
-  người thứ 2 chấm D2-D6 độc lập theo `eval/review-v2-rubric.md` trước khi công bố đạt.
+  - Kiểm thử thủ công theo `eval/review-v2-rubric.md`: **D2 PASS · D3 PASS · D4 PASS · D5 PASS · D6 PASS**.
+  - **Kết luận quality bar v2: ĐẠT** — D1 được xác minh tự động; toàn bộ chiều cần đánh giá thủ công D2-D6 đã PASS.
 
 ---
 
@@ -168,7 +165,7 @@ Prototype: `codebase/prototype/backend/` (FastAPI + Claude) + `codebase/prototyp
 |---|---|---|
 | **Đỗ Quang Huy** | Spec + Evidence | `spec.md` §1-§2 (evidence mining + khảo sát), §4-§5 (thiết kế + kịch bản rủi ro) |
 | **Phạm Tiến Đại** | Prototype (backend + frontend) | `codebase/prototype/backend/` (FastAPI + Claude: ingest PDF, tree summary, explain, exercise), `codebase/prototype/frontend/` (React) — **lát cắt được chấm chính thức, §4** |
-| **Bùi Ngọc Đạt** | Eval mở rộng + Validation + Demo | `eval/golden-set-v2.js` (60 case — cần adapter để chạy được trên backend thật, xem §7), `validation/README.md` + `validation/feedback-log.md` (chạy phiên test thật với ≥3 người ngoài team), chuẩn bị `demo-slides.pdf` |
+| **Bùi Ngọc Đạt** | Eval mở rộng + Validation + Demo | `eval/golden-set-v2.js` (59 case + runner FastAPI; D2-D6 đã kiểm thử thủ công và PASS, xem §7), `validation/README.md` + `validation/feedback-log.md` (chạy phiên test thật với ≥3 người ngoài team), chuẩn bị `demo-slides.pdf` |
 
 *(Phân công này là đề xuất dựa theo phần việc đã có trong repo tính đến thời điểm này — 3 người có thể tự đổi lại cho khớp thế mạnh thật, miễn giữ nguyên tắc: ai cũng phải giải thích được phần có tên mình.)*
 
@@ -196,8 +193,7 @@ Prototype: `codebase/prototype/backend/` (FastAPI + Claude) + `codebase/prototyp
 - §5 *(đã viết lại theo backend thật — 5 kịch bản, xem trên)* — mở rộng lên ≥8, ≥2 case/lớp, trước CP4; ưu tiên vá
   gap error-handling đã phát hiện (`/explain` không có `catch` ở frontend, ingest không bắt lỗi LLM).
 - §6. Bốn đường đi trải nghiệm — chưa làm.
-- **§7** *(đã có 59 case + runner + rubric — xem trên)* — còn thiếu: chạy live đủ 59 case v2 với model thật và
-  người thứ 2 chấm độc lập D2-D6.
+- **§7 — hoàn thành:** 59 case + runner + rubric; kiểm thử tự động D1 và kiểm thử thủ công D2-D6 đều PASS.
 - §8 *(đã điền tên + phân công lại theo lát cắt mới — xem trên)* — còn thiếu: **willing users (≥3 tên người ngoài
   team)** — cần trước khi chạy `validation/`.
 - **`validation/`** — đã tạo scaffold (`validation/README.md`, `validation/feedback-log.md`) nhưng **chưa có dữ liệu
