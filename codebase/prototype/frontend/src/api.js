@@ -1,15 +1,18 @@
-// Backend runs on 8020 in this dev environment (port 8000 has a persistent
-// Windows stale-socket issue on this machine -- see backend PHASE2_NOTES.md).
-export const API_BASE = 'http://localhost:8020'
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8020'
 
 async function request(path, options) {
+  const headers = { ...(options?.headers || {}) }
+  if (options?.body && !(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json'
+  }
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers,
   })
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`${options?.method || 'GET'} ${path} failed: ${res.status} ${text}`)
+    const payload = await res.json().catch(() => null)
+    const detail = payload?.detail?.message || payload?.detail || `HTTP ${res.status}`
+    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail))
   }
   return res.json()
 }
@@ -20,6 +23,14 @@ export function createSession(answers) {
 
 export function ingestPdf(pdfFilename) {
   return request('/ingest', { method: 'POST', body: JSON.stringify({ pdf_filename: pdfFilename }) })
+}
+
+export function listDocuments() {
+  return request('/documents')
+}
+
+export function getIngestStatus(jobId) {
+  return request(`/ingest/status/${jobId}`)
 }
 
 export function getSummary(documentId) {

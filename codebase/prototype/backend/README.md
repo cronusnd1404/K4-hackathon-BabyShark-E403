@@ -3,6 +3,19 @@
 FastAPI backend for PDF ingest, grounded summary trees, personalized explanations,
 cross-page links, and exercises.
 
+## Repository documents
+
+The UI lists PDFs already stored in these repository folders:
+
+- `codebase/prototype/backend/data/raw_pdfs`
+- `data/vlearn-pack/slides`
+
+Users cannot upload files or provide filesystem paths. `POST /ingest` accepts one
+listed filename, repairs stale absolute paths in SQLite, and either returns cached
+content immediately or queues a single background extraction job. The UI polls
+`GET /ingest/status/{job_id}` until the document is ready. Incomplete jobs resume
+after a backend restart.
+
 ## Agent design
 
 The tutor uses a bounded tool-calling loop. The model can make at most three tool
@@ -34,7 +47,7 @@ Main modules:
 - Document and page existence is checked before model calls.
 - Related pages, citations, and summary nodes are filtered against pages stored for
   the current document.
-- PDF ingest accepts a filename only, never an arbitrary filesystem path.
+- PDF serving and ingest are restricted to the two repository folders above.
 - Request sizes, fields, CORS origins, tool rounds, and tool result sizes are bounded.
 
 These controls reduce risk; they do not prove model output is factually correct.

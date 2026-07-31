@@ -10,10 +10,15 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 
 export default function PdfViewer({ fileUrl, onTextSelected, onCurrentPageChange }) {
   const [numPages, setNumPages] = useState(0)
+  const [pageWidth, setPageWidth] = useState(760)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)
+  const [retryKey, setRetryKey] = useState(0)
   const containerRef = useRef(null)
   const ratiosRef = useRef({})
 
   function handleMouseUp() {
+    if (!onTextSelected) return
     const selection = window.getSelection()
     const text = selection ? selection.toString().trim() : ''
     if (!text) return
@@ -24,6 +29,27 @@ export default function PdfViewer({ fileUrl, onTextSelected, onCurrentPageChange
     const pageNumber = parseInt(pageEl.getAttribute('data-page-number'), 10)
     onTextSelected({ pageNumber, selectedText: text })
   }
+
+  useEffect(() => {
+    setNumPages(0)
+    setLoading(true)
+    setLoadError(null)
+    ratiosRef.current = {}
+  }, [fileUrl, retryKey])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const updateWidth = () => {
+      const available = Math.max(280, container.clientWidth - 48)
+      setPageWidth(Math.min(900, available))
+    }
+    updateWidth()
+    const observer = new ResizeObserver(updateWidth)
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     if (!numPages || !onCurrentPageChange) return
@@ -54,12 +80,48 @@ export default function PdfViewer({ fileUrl, onTextSelected, onCurrentPageChange
     return () => observer.disconnect()
   }, [numPages, onCurrentPageChange])
 
+  function handleLoadSuccess({ numPages: loadedPages }) {
+    setNumPages(loadedPages)
+    setLoading(false)
+    setLoadError(null)
+  }
+
+  function handleLoadError(error) {
+    setLoading(false)
+    const message = error?.message || 'Không thể tải PDF'
+    setLoadError(
+      `${message}. Kiểm tra backend cổng 8020, CORS và đường dẫn tài liệu.`,
+    )
+  }
+
   return (
     <div className="pdf-viewer" ref={containerRef} onMouseUp={handleMouseUp}>
-      <Document file={fileUrl} onLoadSuccess={({ numPages }) => setNumPages(numPages)}>
+      {loading && <p className="pdf-loading">Đang tải PDF...</p>}
+      {loadError && (
+        <div className="pdf-error" role="alert">
+          <p>{loadError}</p>
+          <button type="button" onClick={() => setRetryKey((value) => value + 1)}>
+            Thử lại
+          </button>
+        </div>
+      )}
+      <Document
+        key={`${fileUrl}-${retryKey}`}
+        file={fileUrl}
+        onLoadSuccess={handleLoadSuccess}
+        onLoadError={handleLoadError}
+        onSourceError={handleLoadError}
+        loading={null}
+        error={null}
+        className="pdf-document"
+      >
         {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNumber) => (
           <div key={pageNumber} data-page-number={pageNumber} className="pdf-page-wrapper">
-            <Page pageNumber={pageNumber} width={760} />
+            <Page
+              pageNumber={pageNumber}
+              width={pageWidth}
+              loading={<p className="pdf-page-loading">Đang render trang {pageNumber}...</p>}
+            />
           </div>
         ))}
       </Document>

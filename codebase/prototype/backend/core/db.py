@@ -5,6 +5,7 @@ that works for a single-user Streamlit demo, and avoids any
 cross-thread sqlite3 connection-sharing issues.
 """
 
+import json
 import os
 import sqlite3
 import uuid
@@ -80,6 +81,18 @@ CREATE TABLE IF NOT EXISTS exercises (
     exercise_text TEXT NOT NULL,
     created_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS ingestion_jobs (
+    job_id TEXT PRIMARY KEY,
+    document_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    processed_pages INTEGER DEFAULT 0,
+    total_pages INTEGER NOT NULL,
+    warnings_json TEXT NOT NULL DEFAULT '[]',
+    error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 
@@ -115,6 +128,29 @@ def upsert_document(document_id, pdf_path, total_pages):
     conn.close()
 
 
+def get_document(document_id):
+    conn = get_conn()
+    cur = conn.execute(
+        """
+        SELECT document_id, source_pdf_path, total_pages_pdf,
+               total_pages_ingested, validated
+        FROM documents WHERE document_id = ?
+        """,
+        (document_id,),
+    )
+    row = cur.fetchone()
+    conn.close()
+    if row is None:
+        return None
+    return {
+        "document_id": row[0],
+        "source_pdf_path": row[1],
+        "total_pages": row[2] or 0,
+        "ingested_pages": row[3] or 0,
+        "validated": bool(row[4]),
+    }
+
+
 def upsert_page(document_id, page_number, content_text):
     conn = get_conn()
     conn.execute(
@@ -148,6 +184,26 @@ def set_validated(document_id, validated):
     conn.close()
 
 
+def reset_document_validation(document_id):
+    conn = get_conn()
+    conn.execute(
+        "UPDATE documents SET validated = 0, total_pages_ingested = ? WHERE document_id = ?",
+        (count_pages(document_id), document_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def remove_pages_after(document_id, total_pages):
+    conn = get_conn()
+    conn.execute(
+        "DELETE FROM pages WHERE document_id = ? AND page_number > ?",
+        (document_id, total_pages),
+    )
+    conn.commit()
+    conn.close()
+
+
 def get_source_pdf_path(document_id):
     conn = get_conn()
     cur = conn.execute("SELECT source_pdf_path FROM documents WHERE document_id = ?", (document_id,))
@@ -169,6 +225,114 @@ def get_pages(document_id):
     cur = conn.execute(
         "SELECT page_number, content_text FROM pages WHERE document_id = ? ORDER BY page_number",
         (document_id,),
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+
+def create_ingestion_job(document_id, total_pages):
+    job_id = str(uuid.uuid4())
+    now = _now()
+    conn = get_conn()
+    conn.execute(
+        """
+        INSERT INTO ingestion_jobs
+            (job_id, document_id, status, processed_pages, total_pages,
+             warnings_json, error, created_at, updated_at)
+        VALUES (?, ?, 'queued', 0, ?, '[]', NULL, ?, ?)
+        """,
+        (job_id, document_id, total_pages, now, now),
+    )
+    conn.commit()
+    conn.close()
+    return job_id
+
+
+def update_ingestion_job(
+    job_id,
+    *,
+    status=None,
+    processed_pages=None,
+    warnings=None,
+    error=None,
+):
+    updates = ["updated_at = ?"]
+    values = [_now()]
+    if status is not None:
+        updates.append("status = ?")
+        values.append(status)
+    if processed_pages is not None:
+        updates.append("processed_pages = ?")
+        values.append(processed_pages)
+    if warnings is not None:
+        updates.append("warnings_json = ?")
+        values.append(json.dumps(warnings, ensure_ascii=False))
+    if error is not None:
+        updates.append("error = ?")
+        values.append(error)
+    values.append(job_id)
+    conn = get_conn()
+    conn.execute(
+        f"UPDATE ingestion_jobs SET {', '.join(updates)} WHERE job_id = ?",
+        values,
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_ingestion_job(job_id):
+    conn = get_conn()
+    cur = conn.execute(
+        """
+        SELECT job_id, document_id, status, processed_pages, total_pages,
+               warnings_json, error, created_at, updated_at
+        FROM ingestion_jobs WHERE job_id = ?
+        """,
+        (job_id,),
+    )
+    row = cur.fetchone()
+    conn.close()
+    if row is None:
+        return None
+    return {
+        "job_id": row[0],
+        "document_id": row[1],
+        "status": row[2],
+        "processed_pages": row[3],
+        "total_pages": row[4],
+        "warnings": json.loads(row[5] or "[]"),
+        "error": row[6],
+        "created_at": row[7],
+        "updated_at": row[8],
+    }
+
+
+def get_latest_ingestion_job(document_id):
+    conn = get_conn()
+    cur = conn.execute(
+        """
+        SELECT job_id FROM ingestion_jobs
+        WHERE document_id = ?
+        ORDER BY created_at DESC LIMIT 1
+        """,
+        (document_id,),
+    )
+    row = cur.fetchone()
+    conn.close()
+    return get_ingestion_job(row[0]) if row else None
+
+
+def list_recoverable_ingestion_jobs():
+    conn = get_conn()
+    cur = conn.execute(
+        """
+        SELECT j.job_id, d.source_pdf_path
+        FROM ingestion_jobs AS j
+        JOIN documents AS d ON d.document_id = j.document_id
+        WHERE j.status IN ('queued', 'processing')
+        ORDER BY j.created_at
+        """
     )
     rows = cur.fetchall()
     conn.close()

@@ -1,16 +1,28 @@
-# React + Vite
+# VLearn Tutor+ frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React/Vite interface for repository-provided course PDFs. It lists documents from
+the backend, renders them with `react-pdf`, shows background ingestion progress,
+and enables summary/explanation/exercise actions when extraction is ready.
 
-Currently, two official plugins are available:
+Users cannot upload PDFs. Available files come from:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- `codebase/prototype/backend/data/raw_pdfs`
+- `data/vlearn-pack/slides`
 
-## React Compiler
+## Run
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```powershell
+Copy-Item .env.example .env
+npm.cmd install
+npm.cmd run dev
+```
 
-## Expanding the Oxlint configuration
+The backend defaults to `http://localhost:8020`. Override it with
+`VITE_API_BASE_URL` when needed.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Check
+
+```powershell
+npm.cmd run lint
+npm.cmd run build
+```
